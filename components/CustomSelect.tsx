@@ -16,7 +16,7 @@ type CustomSelectProps = {
 };
 
 const focusRing =
-  "outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
 export function CustomSelect({
   label,
@@ -62,7 +62,7 @@ export function CustomSelect({
                   className={cn(
                     "relative flex cursor-pointer select-none items-center rounded-lg py-3 pl-9 pr-8 text-[16px] text-soft-black",
                     "data-[highlighted]:bg-warm-white data-[state=checked]:font-semibold",
-                    "outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
                   )}
                 >
                   <Select.ItemIndicator className="absolute left-3 text-brand-blue">

@@ -16,7 +16,7 @@ type CustomDropzoneProps = {
 };
 
 const focusRing =
-  "outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
 function formatSize(bytes: number) {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;

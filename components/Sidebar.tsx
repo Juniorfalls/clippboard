@@ -13,7 +13,7 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
 ];
 
 const focusRing =
-  "outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
 export function Sidebar() {
   const pathname = usePathname();

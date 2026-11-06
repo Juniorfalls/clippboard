@@ -48,7 +48,7 @@ export function CustomTextArea({
             // resize-none removes the native drag handle; no-scrollbar hides the native bar
             "no-scrollbar block w-full resize-none rounded-2xl border border-border-gray bg-white px-5 py-4 pb-9 text-[16px] text-soft-black",
             "placeholder:text-soft-black/40 duration-200 disabled:opacity-60",
-            "outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
           )}
         />
         <span
