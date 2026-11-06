@@ -7,8 +7,9 @@ import { CustomDropzone } from "@/components/CustomDropzone";
 import { CustomTextArea } from "@/components/CustomTextArea";
 import { ClipSkeleton } from "@/components/ClipSkeleton";
 import { ClipGallery } from "@/components/ClipGallery";
-import { MockAIAnalyzer } from "@/services/ai/MockAIAnalyzer";
+import { getAIAnalyzer } from "@/services/ai";
 import { getVideoProcessor } from "@/services/video";
+import { extractAudio } from "@/lib/extract-audio";
 import { cn } from "@/lib/utils";
 import type { Clip, ProcessingOptions } from "@/types/video";
 
@@ -55,13 +56,26 @@ export default function WorkspacePage() {
     setClips([]);
     setProgressById({});
 
-    const loadingToast = toast.loading("Analyzing video for best moments...");
+    const statusToastId = "analysis-status";
+    toast.loading("Extracting audio...", { id: statusToastId });
 
     try {
-      const analyzer = new MockAIAnalyzer();
-      const analysis = await analyzer.analyze(uploadedFile, prompt);
+      const audioFile = await extractAudio(uploadedFile, (progress) => {
+        toast.loading("Extracting audio...", {
+          id: statusToastId,
+          description: `${Math.round(progress * 100)}% complete`,
+        });
+      });
+
+      toast.loading("Transcribing audio...", {
+        id: statusToastId,
+        description: "Sending the audio track to Whisper.",
+      });
+
+      const analyzer = getAIAnalyzer();
+      const analysis = await analyzer.analyze(audioFile, prompt);
       setClips(analysis.clips);
-      toast.dismiss(loadingToast);
+      toast.dismiss(statusToastId);
 
       const processor = getVideoProcessor();
       const options: ProcessingOptions = {
@@ -111,13 +125,13 @@ export default function WorkspacePage() {
         });
       }
     } catch (error) {
-      toast.dismiss(loadingToast);
+      toast.dismiss(statusToastId);
       toast.error("Could not generate clips", {
         description: error instanceof Error ? error.message : "Try again in a moment.",
       });
     } finally {
       setIsProcessing(false);
-      toast.dismiss(loadingToast);
+      toast.dismiss(statusToastId);
     }
   }
 
