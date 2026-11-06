@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
-import { Sidebar } from "@/components/Sidebar";
+import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -14,11 +14,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="flex min-h-screen flex-col bg-warm-white text-soft-black lg:flex-row">
-        <Sidebar />
-        <main className="min-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-8 sm:px-6 md:px-10 lg:py-10">
-          <div className="mx-auto w-full max-w-shell">{children}</div>
-        </main>
+      <body className="min-h-screen bg-warm-white text-soft-black">
+        <AppShell>{children}</AppShell>
         {/* Custom toasts replace window.alert / confirm */}
         <Toaster
           position="top-right"

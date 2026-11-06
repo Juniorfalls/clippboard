@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/Logo";
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: "/", label: "Workspace", icon: Sparkles },
+  { href: "/dashboard", label: "Workspace", icon: Sparkles },
   { href: "/projects", label: "Projects", icon: FolderOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

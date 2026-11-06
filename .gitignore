@@ -6,3 +6,6 @@ out
 *.tsbuildinfo
 next-env.d.ts
 .env.local
+
+# Keep the environment template in version control
+!.env.local.example
