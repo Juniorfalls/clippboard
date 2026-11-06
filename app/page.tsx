@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Clapperboard } from "lucide-react";
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CustomDropzone } from "@/components/CustomDropzone";
@@ -74,6 +75,15 @@ export default function WorkspacePage() {
 
       const analyzer = getAIAnalyzer();
       const analysis = await analyzer.analyze(audioFile, prompt);
+
+      if (analysis.clips.length === 0) {
+        throw new Error("No memorable moments were found in this video.");
+      }
+
+      if (analysis.clips.length !== 10) {
+        throw new Error("The AI did not return 10 clips. Please try again.");
+      }
+
       setClips(analysis.clips);
       toast.dismiss(statusToastId);
 
@@ -228,7 +238,12 @@ export default function WorkspacePage() {
         </div>
       </section>
 
-      <section aria-label="Clips" aria-live="polite" className="flex flex-col gap-4">
+      <section
+        aria-label="Clips"
+        aria-live="polite"
+        aria-busy={isProcessing}
+        className="flex flex-col gap-4"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-[24px] font-bold leading-[1.25]">Your clips</h2>
           {isProcessing && (
@@ -239,18 +254,32 @@ export default function WorkspacePage() {
         </div>
 
         {isProcessing && clips.length === 0 ? (
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 10 }).map((_, i) => (
-              <ClipSkeleton key={i} />
+              <ClipSkeleton key={i} className="mx-auto w-full max-w-sm xs:max-w-none" />
             ))}
           </div>
         ) : clips.length > 0 ? (
           <ClipGallery clips={clips} progressById={progressById} />
         ) : (
-          <div className="flex flex-col items-center rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center">
-            <p className="text-[16px] font-semibold">No clips yet</p>
-            <p className="mt-1 text-[14px] text-soft-black/60">
-              Add a video and select Generate 10 Clips to see results here.
+          <div className="relative flex flex-col items-center overflow-hidden rounded-3 border border-dashed border-border-gray bg-white px-6 py-16 text-center">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-brand-blue-light/70 to-transparent"
+            />
+            <span className="relative mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border-4 border-brand-blue-light bg-white text-brand-blue">
+              <Clapperboard className="h-8 w-8" aria-hidden />
+            </span>
+            <h3 className="relative text-[20px] font-bold leading-[1.25]">
+              {uploadedFile ? "Ready when you are" : "No clips yet"}
+            </h3>
+            <p className="relative mt-2 max-w-sm text-[16px] text-soft-black/60">
+              {uploadedFile
+                ? "Your video is ready. Hit Generate 10 Clips and we will find the moments worth sharing."
+                : "Upload a video and hit Generate. We will find your 10 best moments and turn them into shareable clips."}
+            </p>
+            <p className="relative mt-5 text-[12px] font-semibold text-soft-black/40">
+              Browser-based processing · Keep tab open during export
             </p>
           </div>
         )}

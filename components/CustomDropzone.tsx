@@ -94,7 +94,7 @@ export function CustomDropzone({
     <div
       {...getRootProps()}
       className={cn(
-        "flex flex-col items-center rounded-2xl border-2 border-dashed p-10 text-center duration-200 md:p-12",
+        "relative flex flex-col items-center rounded-2xl border-2 border-dashed p-8 text-center duration-200 sm:p-10 md:p-12",
         isDragActive
           ? "border-brand-blue bg-brand-blue/10"
           : "border-gray-300 bg-warm-white",
@@ -103,7 +103,7 @@ export function CustomDropzone({
       )}
     >
       {/* Native input stays in the DOM for the drop API but is never visible */}
-      <input {...getInputProps()} className="absolute opacity-0" tabIndex={-1} />
+      <input {...getInputProps()} className="pointer-events-none absolute opacity-0" tabIndex={-1} />
 
       <UploadCloud
         className={cn("mb-4 h-10 w-10", isDragActive ? "text-brand-blue" : "text-soft-black/50")}

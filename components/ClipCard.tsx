@@ -85,7 +85,6 @@ function VideoPreview({ clip }: { clip: Clip }) {
         aria-label={`Preview of ${clip.title}`}
         playsInline
         preload="metadata"
-        onClick={togglePlayback}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
@@ -131,6 +130,7 @@ function VideoPreview({ clip }: { clip: Clip }) {
           type="button"
           onClick={toggleMute}
           aria-label={isMuted ? "Unmute clip" : "Mute clip"}
+          aria-pressed={isMuted}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-full bg-warm-white/15 duration-200 hover:bg-warm-white/25",
             focusRing
@@ -179,6 +179,7 @@ function ProcessingPreview({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress}
+          aria-valuetext={`${progress}% complete`}
           aria-label={`Rendering ${clip.title}`}
           className="h-2 w-full overflow-hidden rounded-full bg-gray-200"
         >
@@ -263,7 +264,7 @@ export function ClipCard({
             onClick={() => void downloadClip(clip)}
             aria-label={`Download ${clip.title}`}
             className={cn(
-              "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+              "inline-flex w-full items-center justify-center gap-2 rounded-2 bg-brand-blue px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
               focusRing
             )}
           >
