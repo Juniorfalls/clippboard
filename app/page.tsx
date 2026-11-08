@@ -279,16 +279,15 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-warm-white text-soft-black">
       <header className="sticky top-0 z-40 border-b border-border-gray/70 bg-warm-white/90 backdrop-blur-md">
-        <div className="mx-auto grid w-full max-w-shell grid-cols-2 items-center gap-3 px-4 py-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr]">
-          <div aria-hidden className="hidden lg:block" />
+        <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-4 py-4">
           <Link
             href="/"
             aria-label="Clippboard home"
-            className={cn("justify-self-start rounded-lg lg:justify-self-center", focusRing)}
+            className={cn("rounded-lg", focusRing)}
           >
             <Logo />
           </Link>
-          <div className="flex items-center justify-self-end gap-3">
+          <div className="flex items-center gap-4">
             <Link
               href="/login"
               className={cn(
