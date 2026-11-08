@@ -1,5 +1,493 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
+import {
+  ArrowRight,
+  Captions,
+  Download,
+  Palette,
+  Play,
+  Scissors,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
+import { Logo, LogoMark } from "@/components/Logo";
+import { cn } from "@/lib/utils";
+
+const focusRing =
+  "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:ring-offset-2 focus-visible:ring-offset-warm-white";
+
+const primaryButton = cn(
+  "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-6 py-3.5 text-[16px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+  focusRing
+);
+
+const FEATURES: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  items: string[];
+}[] = [
+  {
+    title: "Analyze",
+    description: "Find the perfect moments.",
+    icon: Sparkles,
+    items: [
+      "AI Highlight Detection",
+      "Filler Word Removal",
+      "Engagement Scoring",
+    ],
+  },
+  {
+    title: "Edit",
+    description: "Automated video editing.",
+    icon: Scissors,
+    items: [
+      "9:16 Auto-Reframing",
+      "Active Speaker Tracking",
+      "Karaoke-Style Captions",
+    ],
+  },
+  {
+    title: "Customize",
+    description: "Your brand, every time.",
+    icon: Palette,
+    items: [
+      "Custom Fonts & Colors",
+      "Animated Intros/Outros",
+      "Brand Template Library",
+    ],
+  },
+  {
+    title: "Export",
+    description: "Professional outputs.",
+    icon: Download,
+    items: [
+      "4K Upscaling",
+      "Final Cut Pro XML",
+      "Browser-Based Rendering",
+    ],
+  },
+];
+
+const TESTIMONIALS = [
+  {
+    name: "Maya Chen",
+    title: "Content Creator",
+    avatar: "/avatars/creator-1.svg",
+  },
+  {
+    name: "Jordan Blake",
+    title: "Podcast Host",
+    avatar: "/avatars/creator-2.svg",
+  },
+  {
+    name: "Priya Shah",
+    title: "Marketing Director",
+    avatar: "/avatars/creator-3.svg",
+  },
+  {
+    name: "Theo Martins",
+    title: "Video Editor",
+    avatar: "/avatars/creator-4.svg",
+  },
+  {
+    name: "Lena Ortiz",
+    title: "Social Media Manager",
+    avatar: "/avatars/creator-1.svg",
+  },
+  {
+    name: "Sam Rivera",
+    title: "Founder & Creator",
+    avatar: "/avatars/creator-3.svg",
+  },
+];
+
+function CheckMark() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden
+      className="h-4 w-4 shrink-0 text-brand-blue"
+      fill="none"
+    >
+      <circle cx="10" cy="10" r="9" stroke="currentColor" opacity="0.28" />
+      <path
+        d="m6 10.2 2.5 2.5L14.2 7"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function HeroMockup() {
+  return (
+    <div className="relative mx-auto mt-12 max-w-5xl overflow-hidden rounded-3 border-4 border-blue-200 bg-warm-white shadow-[0_28px_80px_rgba(28,28,28,0.12)] md:mt-16">
+      <div className="flex items-center gap-3 border-b border-border-gray bg-white/80 px-4 py-3">
+        <span className="h-2.5 w-2.5 rounded-full bg-red-300" aria-hidden />
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-300" aria-hidden />
+        <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" aria-hidden />
+        <span className="mx-auto rounded-full bg-warm-white px-3 py-1 text-[11px] font-semibold text-soft-black/50">
+          app.clippboard.com
+        </span>
+      </div>
+
+      <div className="grid gap-4 bg-white/50 p-3 sm:p-5 md:grid-cols-[150px_1fr] md:p-6">
+        <aside className="hidden rounded-2 border border-border-gray bg-white p-3 md:block">
+          <div className="flex items-center gap-2 rounded-lg bg-warm-white px-2.5 py-2">
+            <LogoMark className="h-6 w-6" />
+            <span className="text-[13px] font-bold">Clippboard</span>
+          </div>
+          <div className="mt-4 space-y-1.5">
+            {["Workspace", "Projects", "Team", "Settings"].map(
+              (item, index) => (
+                <div
+                  key={item}
+                  className={cn(
+                    "rounded-lg px-2.5 py-2 text-[11px] font-semibold",
+                    index === 0
+                      ? "bg-brand-blue-light/70 text-soft-black"
+                      : "text-soft-black/45"
+                  )}
+                >
+                  {item}
+                </div>
+              )
+            )}
+          </div>
+          <div className="mt-6 rounded-xl border border-border-gray bg-warm-white p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-soft-black/40">
+              Workspace
+            </p>
+            <p className="mt-1 text-[11px] font-bold">Studio Team</p>
+          </div>
+        </aside>
+
+        <div className="min-w-0 rounded-2 border border-border-gray bg-white p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-blue">
+                New project
+              </p>
+              <p className="text-[16px] font-bold leading-tight sm:text-[20px]">
+                Podcast highlights
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-gray bg-warm-white px-2.5 py-1 text-[9px] font-semibold text-soft-black/60">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+              Processing in browser
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {[
+              "from-blue-200 to-blue-500",
+              "from-emerald-100 to-emerald-400",
+              "from-amber-100 to-orange-400",
+            ].map((gradient, index) => (
+              <div
+                key={gradient}
+                className="overflow-hidden rounded-xl border border-border-gray bg-warm-white"
+              >
+                <div
+                  className={cn(
+                    "relative aspect-[9/13] bg-gradient-to-br",
+                    gradient
+                  )}
+                >
+                  <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[7px] font-bold text-soft-black">
+                    {92 - index * 11}
+                  </span>
+                  <span className="absolute bottom-1.5 left-1.5 right-1.5 rounded-md bg-white/90 px-1.5 py-1 text-[8px] font-bold leading-tight text-soft-black">
+                    {index === 0
+                      ? "The one habit that changed everything"
+                      : index === 1
+                        ? "Build a content system that lasts"
+                        : "What great storytelling really needs"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-2 py-1.5 text-[7px] font-semibold text-soft-black/50">
+                  <span>0:{24 + index * 9}</span>
+                  <span className="text-brand-blue">Ready</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px]">
+            <div className="rounded-xl border border-border-gray bg-warm-white p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-brand-blue text-soft-black">
+                  <Captions className="h-3 w-3" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-[9px] font-bold">Captions are on brand</p>
+                  <p className="text-[8px] text-soft-black/45">
+                    Inter · #3B82F6 · bold karaoke style
+                  </p>
+                </div>
+              </div>
+              <div className="mt-2 flex gap-1">
+                {[70, 45, 85, 60, 35, 75, 50].map((width, index) => (
+                  <span
+                    key={index}
+                    className="h-1 rounded-full bg-brand-blue/30"
+                    style={{ width: `${width / 2}px` }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-center gap-2 rounded-xl bg-soft-black p-2.5 text-white">
+              <Play className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
+              <span className="text-[9px] font-semibold">Preview clips</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SocialIcon({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <a
+      href="#"
+      aria-label={label}
+      className={cn(
+        "flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-white/70 duration-200 hover:border-brand-blue hover:text-brand-blue",
+        "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+      )}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-5 w-5"
+        aria-hidden
+      >
+        {children}
+      </svg>
+    </a>
+  );
+}
 
 export default function HomePage() {
-  redirect("/dashboard");
+  return (
+    <div className="min-h-screen bg-warm-white text-soft-black">
+      <header className="sticky top-0 z-40 border-b border-border-gray/70 bg-warm-white/90 backdrop-blur-md">
+        <div className="mx-auto grid w-full max-w-shell grid-cols-2 items-center gap-3 px-4 py-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr]">
+          <div aria-hidden className="hidden lg:block" />
+          <Link
+            href="/"
+            aria-label="Clippboard home"
+            className={cn("justify-self-start rounded-lg lg:justify-self-center", focusRing)}
+          >
+            <Logo />
+          </Link>
+          <div className="flex items-center justify-self-end gap-3">
+            <Link
+              href="/login"
+              className={cn(
+                "hidden rounded-lg px-3 py-2 text-[14px] font-semibold text-soft-black/70 duration-200 hover:bg-white hover:text-soft-black sm:inline-flex",
+                focusRing
+              )}
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/login"
+              className={cn(
+                "inline-flex items-center justify-center rounded-2 bg-brand-blue px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+                focusRing
+              )}
+            >
+              Start Clipping
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section className="px-4 pb-20 pt-16 sm:px-6 md:pb-24 md:pt-24">
+          <div className="mx-auto flex max-w-[1280px] flex-col items-center text-center">
+            <p className="text-[16px] font-bold text-soft-black sm:text-[18px]">
+              The video platform made for creators:
+            </p>
+            <h1 className="mt-4 max-w-5xl text-[46px] font-bold leading-[0.95] -tracking-1 text-soft-black sm:text-[64px] lg:text-[80px]">
+              Turn long videos into engaging short-form content
+            </h1>
+            <p className="mx-auto mt-6 max-w-2xl text-[16px] leading-relaxed text-gray-500 sm:text-[18px]">
+              Clippboard uses AI to find the best moments, reframe them to 9:16,
+              and add animated captions—all processed securely in your browser.
+            </p>
+            <Link href="/login" className={cn(primaryButton, "mt-8 px-7 py-4 text-[18px]")}>
+              Start Clipping Free
+              <ArrowRight className="h-5 w-5" aria-hidden />
+            </Link>
+          </div>
+          <HeroMockup />
+        </section>
+
+        <section className="bg-soft-black px-4 py-20 text-warm-white sm:px-6 md:py-24">
+          <div className="mx-auto w-full max-w-shell">
+            <h2 className="max-w-4xl text-[36px] font-bold leading-[1.03] -tracking-1 sm:text-[48px] lg:text-[64px]">
+              Clippboard is the{" "}
+              <span className="text-blue-500">video-first operating system</span>{" "}
+              for creators who mean business
+            </h2>
+
+            <div className="mt-12 grid grid-cols-1 gap-4 xs:grid-cols-2 md:grid-cols-4">
+              {FEATURES.map(({ title, description, icon: Icon, items }) => (
+                <article
+                  key={title}
+                  className="rounded-lg bg-warm-white/10 px-4 pb-10 pt-4 lg:px-5 lg:pt-5"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-blue text-soft-black">
+                    <Icon className="h-5 w-5" aria-hidden />
+                  </span>
+                  <h3 className="mt-5 text-[24px] font-bold leading-[1.25]">
+                    {title}
+                  </h3>
+                  <p className="mt-2 text-[16px] text-warm-white/70">
+                    {description}
+                  </p>
+                  <hr className="my-2 border-gray-800" />
+                  <ul className="mt-4 flex flex-col gap-3">
+                    {items.map((item) => (
+                      <li
+                        key={item}
+                        className="flex items-start gap-2 text-[14px] text-warm-white/85"
+                      >
+                        <CheckMark />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="overflow-hidden bg-soft-black py-16 text-white">
+          <h2 className="mx-auto max-w-3xl px-4 text-center text-[28px] font-bold leading-[1.15] -tracking-1 sm:text-[36px]">
+            Thousands of professional creators are using Clippboard
+          </h2>
+
+          <div className="relative mt-10">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-soft-black to-transparent sm:w-28"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-soft-black to-transparent sm:w-28"
+            />
+            <div className="no-scrollbar flex w-max animate-marquee hover:[animation-play-state:paused] motion-reduce:animate-none">
+              {[0, 1].map((group) => (
+                <div
+                  key={group}
+                  className="flex shrink-0 gap-8 pr-8"
+                  aria-hidden={group === 1}
+                >
+                  {TESTIMONIALS.map((person) => (
+                    <figure
+                      key={`${group}-${person.name}`}
+                      className="flex w-[150px] shrink-0 flex-col items-center text-center sm:w-[187px]"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={person.avatar}
+                        alt=""
+                        className="h-[150px] w-[150px] rounded-full border border-white/10 object-cover sm:h-[187px] sm:w-[187px]"
+                        loading="lazy"
+                      />
+                      <figcaption className="mt-4">
+                        <p className="text-[18px] font-semibold">{person.name}</p>
+                        <p className="mt-1 text-[14px] text-gray-400">
+                          {person.title}
+                        </p>
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 pb-20 pt-16 sm:px-6">
+          <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+            <h2 className="text-[36px] font-bold leading-[1] -tracking-1 sm:text-[40px]">
+              Ready to scale your content?
+            </h2>
+            <Link href="/login" className={cn(primaryButton, "mt-7 px-7 py-4 text-[18px]")}>
+              Start Clipping Free
+              <ArrowRight className="h-5 w-5" aria-hidden />
+            </Link>
+          </div>
+        </section>
+      </main>
+
+      <footer className="bg-soft-black px-4 py-20 text-white sm:px-6">
+        <div className="mx-auto grid w-full max-w-shell grid-cols-12 gap-8">
+          <div className="col-span-12 md:col-span-4">
+            <Link
+              href="/"
+              aria-label="Clippboard home"
+              className={cn("inline-flex items-center gap-2 rounded-lg", focusRing)}
+            >
+              <span className="rounded-lg ring-1 ring-white/15">
+                <LogoMark />
+              </span>
+              <span className="text-2xl font-bold -tracking-1">Clippboard</span>
+            </Link>
+            <p className="mt-5 text-[14px] text-white/50">
+              © 2026 Clippboard. All rights reserved.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[14px]">
+              <a
+                href="/privacy"
+                className={cn("text-white/60 duration-200 hover:text-brand-blue", focusRing)}
+              >
+                Privacy Policy
+              </a>
+              <a
+                href="/terms"
+                className={cn("text-white/60 duration-200 hover:text-brand-blue", focusRing)}
+              >
+                Terms of Service
+              </a>
+            </div>
+          </div>
+
+          <div className="col-span-12 flex items-start gap-3 md:col-span-4 md:col-start-9 md:justify-end">
+            <SocialIcon label="YouTube">
+              <rect x="3" y="6" width="18" height="12" rx="4" />
+              <path d="m10 9 5 3-5 3z" fill="currentColor" stroke="none" />
+            </SocialIcon>
+            <SocialIcon label="X">
+              <path d="M5 4 19 20" />
+              <path d="M19 4 5 20" />
+            </SocialIcon>
+            <SocialIcon label="Instagram">
+              <rect x="4" y="4" width="16" height="16" rx="5" />
+              <circle cx="12" cy="12" r="4" />
+              <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none" />
+            </SocialIcon>
+            <SocialIcon label="LinkedIn">
+              <path d="M6 9v9" />
+              <path d="M6 5.5v.1" />
+              <path d="M11 18v-5a3 3 0 0 1 6 0v5" />
+              <path d="M11 9v9" />
+            </SocialIcon>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
 }

@@ -7,7 +7,7 @@ import { TeamProvider } from "@/components/TeamProvider";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (pathname.startsWith("/login")) {
+  if (pathname === "/" || pathname.startsWith("/login")) {
     return <>{children}</>;
   }
 

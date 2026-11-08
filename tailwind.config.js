@@ -49,10 +49,15 @@ module.exports = {
           from: { opacity: "1", transform: "translateY(0) scale(1)" },
           to: { opacity: "0", transform: "translateY(-4px) scale(0.98)" },
         },
+        marquee: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
       },
       animation: {
         "select-in": "select-in 120ms ease-out",
         "select-out": "select-out 90ms ease-in",
+        marquee: "marquee 38s linear infinite",
       },
     },
   },
