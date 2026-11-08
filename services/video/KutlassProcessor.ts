@@ -90,6 +90,104 @@ function getBrollDimensions(options: ProcessingOptions) {
   return { width: 1920, height: 1080 };
 }
 
+function buildPaneXExpression(
+  points: FaceTrack['points'],
+  selectCenter: (point: FaceTrack['points'][number]) => number,
+  sourceWidth: number,
+  cropWidth: number
+) {
+  const maxX = Math.max(0, sourceWidth - cropWidth);
+  const xValues = points.map((point) =>
+    Math.round(
+      Math.min(
+        maxX,
+        Math.max(0, selectCenter(point) * sourceWidth - cropWidth / 2)
+      )
+    )
+  );
+
+  let expression = String(xValues[xValues.length - 1]);
+
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    const start = points[index].time;
+    const end = points[index + 1].time;
+    if (end <= start) continue;
+
+    const fromX = xValues[index];
+    const toX = xValues[index + 1];
+    const slope = (toX - fromX) / (end - start);
+    const direction = slope >= 0 ? '+' : '-';
+    const segment = `${fromX}${direction}${Math.abs(slope).toFixed(
+      4
+    )}*(t-${start.toFixed(2)})`;
+
+    expression = `if(lt(t\\,${end.toFixed(2)})\\,${segment}\\,${expression})`;
+  }
+
+  return expression;
+}
+
+function buildSplitScreenFilter(
+  clip: Clip,
+  options: ProcessingOptions,
+  track: FaceTrack
+) {
+  if (options.layout !== 'split-screen') return null;
+
+  const { width, height } = track;
+  if (width <= 0 || height <= 0 || track.points.length === 0) return null;
+
+  const dimensions = getBrollDimensions(options);
+  const paneHeight = Math.floor(dimensions.height / 2);
+  const paneAspect = dimensions.width / paneHeight;
+  let cropHeight = height;
+  let cropWidth = Math.round(cropHeight * paneAspect);
+
+  if (cropWidth > width) {
+    cropWidth = width;
+    cropHeight = Math.round(cropWidth / paneAspect);
+  }
+
+  const cropY = Math.max(0, Math.round((height - cropHeight) / 2));
+  const cuts = getRelativeCuts(clip);
+  const points: FaceTrack['points'] = [];
+
+  track.points.forEach((point) => {
+    const time = mapTimeThroughCuts(point.time, cuts);
+    const previous = points[points.length - 1];
+    if (previous && time <= previous.time + 0.01) return;
+    points.push({ ...point, time });
+  });
+
+  if (points.length === 0) return null;
+
+  const primaryX = buildPaneXExpression(
+    points,
+    (point) => point.centerX,
+    width,
+    cropWidth
+  );
+  const secondaryX = buildPaneXExpression(
+    points,
+    (point) => point.secondaryCenterX ?? 0.5,
+    width,
+    cropWidth
+  );
+
+  console.log(
+    `[KutlassProcessor] Split-screen podcast layout for "${clip.title}" using ${points.length} samples.`
+  );
+
+  return (
+    `split=2[ssTopSource][ssBottomSource];` +
+    `[ssTopSource]crop=${cropWidth}:${cropHeight}:${primaryX}:${cropY},` +
+    `scale=${dimensions.width}:${paneHeight}[ssTop];` +
+    `[ssBottomSource]crop=${cropWidth}:${cropHeight}:${secondaryX}:${cropY},` +
+    `scale=${dimensions.width}:${paneHeight}[ssBottom];` +
+    `[ssTop][ssBottom]vstack=inputs=2`
+  );
+}
+
 function getRelativeCuts(clip: Clip): TimeRange[] {
   const ranges = (clip.cutRanges ?? [])
     .map((range) => ({
@@ -325,6 +423,7 @@ export class KutlassProcessor implements IVideoProcessor {
     options: ProcessingOptions,
     assContent: string | null,
     cropFilter: string | null,
+    splitFilter: string | null,
     onProgress: (progress: number) => void
   ): Promise<string> {
     const ffmpeg = await getFfmpeg();
@@ -362,7 +461,8 @@ export class KutlassProcessor implements IVideoProcessor {
         filters.push(`select='not(${cutCondition})'`);
         filters.push('setpts=N/FRAME_RATE/TB');
       }
-      if (cropFilter) filters.push(cropFilter);
+      if (splitFilter) filters.push(splitFilter);
+      else if (cropFilter) filters.push(cropFilter);
       if (assContent) {
         await ffmpeg.writeFile(subtitleName, new TextEncoder().encode(assContent));
         filters.push(`ass=${subtitleName}`);
@@ -567,8 +667,12 @@ export class KutlassProcessor implements IVideoProcessor {
 
     const assContent = buildAssSubtitles(clip, options);
     let cropFilter: string | null = null;
+    let splitFilter: string | null = null;
 
-    if (options.targetAspectRatio === '9:16') {
+    if (
+      options.targetAspectRatio === '9:16' ||
+      options.layout === 'split-screen'
+    ) {
       try {
         const { trackFaces } = await import('@/lib/face-tracker');
         const track = await trackFaces(
@@ -577,7 +681,11 @@ export class KutlassProcessor implements IVideoProcessor {
           clip.endTime
         );
         if (track) {
-          cropFilter = buildFaceCropFilter(clip, options, track);
+          if (options.layout === 'split-screen') {
+            splitFilter = buildSplitScreenFilter(clip, options, track);
+          } else if (options.targetAspectRatio === '9:16') {
+            cropFilter = buildFaceCropFilter(clip, options, track);
+          }
         }
       } catch (error) {
         console.warn(
@@ -597,7 +705,7 @@ export class KutlassProcessor implements IVideoProcessor {
         : 'No transcript captions available for this clip.'
     );
 
-    if (assContent || cropFilter) {
+    if (assContent || cropFilter || splitFilter) {
       try {
         return await this.renderWithCaptions(
           sourceFile,
@@ -605,6 +713,7 @@ export class KutlassProcessor implements IVideoProcessor {
           options,
           assContent,
           cropFilter,
+          splitFilter,
           onProgress
         );
       } catch (error) {

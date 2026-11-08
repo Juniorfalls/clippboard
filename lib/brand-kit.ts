@@ -2,12 +2,14 @@ export type BrandKit = {
   color: string;
   font: string;
   logo: string | null;
+  layout: "single" | "split-screen";
 };
 
 export const DEFAULT_BRAND_KIT: BrandKit = {
   color: "#3B82F6",
   font: "Inter",
   logo: null,
+  layout: "single",
 };
 
 export const BRAND_FONT_OPTIONS = [
@@ -48,6 +50,8 @@ export function loadBrandKit(userId: string): BrandKit {
           ? parsed.font
           : DEFAULT_BRAND_KIT.font,
       logo: typeof parsed.logo === "string" ? parsed.logo : null,
+      layout:
+        parsed.layout === "split-screen" ? "split-screen" : "single",
     };
   } catch {
     return DEFAULT_BRAND_KIT;

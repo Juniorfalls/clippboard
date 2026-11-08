@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Clapperboard } from "lucide-react";
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
@@ -65,10 +65,16 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
   const [format, setFormat] = useState<ProcessingOptions["targetAspectRatio"]>("9:16");
   const [resolution, setResolution] =
     useState<ProcessingOptions["resolution"]>("1080p");
+  const [layout, setLayout] =
+    useState<ProcessingOptions["layout"]>("single");
   const [isProcessing, setIsProcessing] = useState(false);
   const [clips, setClips] = useState<Clip[]>([]);
   const [progressById, setProgressById] = useState<Record<string, number>>({});
   const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
+
+  useEffect(() => {
+    setLayout(loadBrandKit(userId).layout);
+  }, [userId]);
 
   function updateClip(id: string, patch: Partial<Clip>) {
     setClips((previous) =>
@@ -124,6 +130,7 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
       const options: ProcessingOptions = {
         targetAspectRatio: format,
         resolution,
+        layout,
         animationText: overlayText,
         animationStyle: "single-line",
         brandColor: brandKit.color,
@@ -212,6 +219,7 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
       const options: ProcessingOptions = {
         targetAspectRatio: format,
         resolution,
+        layout,
         animationText: overlayText,
         animationStyle: "single-line",
         brandColor: brandKit.color,

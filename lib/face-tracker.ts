@@ -3,6 +3,7 @@ import type { BlazeFaceModel, NormalizedFace } from "@tensorflow-models/blazefac
 export type FaceTrackPoint = {
   time: number;
   centerX: number;
+  secondaryCenterX?: number;
 };
 
 export type FaceTrack = {
@@ -19,7 +20,7 @@ async function getFaceModel(): Promise<BlazeFaceModel> {
       const tf = await import("@tensorflow/tfjs");
       const blazeface = await import("@tensorflow-models/blazeface");
       await tf.ready();
-      return blazeface.load({ maxFaces: 1, scoreThreshold: 0.5 });
+      return blazeface.load({ maxFaces: 2, scoreThreshold: 0.5 });
     })().catch((error) => {
       modelPromise = null;
       throw error;
@@ -132,15 +133,21 @@ export async function trackFaces(
 
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const faces = await model.estimateFaces(canvas, false);
-      const bestFace = faces
+      const detectedFaces = faces
         .map((face) => getFaceCenter(face))
         .filter((face): face is { centerX: number; area: number } => Boolean(face))
-        .sort((a, b) => b.area - a.area)[0];
+        .sort((a, b) => b.area - a.area);
+
+      const bestFace = detectedFaces[0];
+      const secondaryFace = detectedFaces[1];
 
       if (bestFace) {
         points.push({
           time: offset,
           centerX: Math.min(1, Math.max(0, bestFace.centerX / canvas.width)),
+          secondaryCenterX: secondaryFace
+            ? Math.min(1, Math.max(0, secondaryFace.centerX / canvas.width))
+            : undefined,
         });
       }
     }
@@ -152,7 +159,16 @@ export async function trackFaces(
       const window = points.slice(Math.max(0, index - 1), index + 2);
       const centerX =
         window.reduce((sum, item) => sum + item.centerX, 0) / window.length;
-      return { time: point.time, centerX };
+      const secondaryValues = window
+        .map((item) => item.secondaryCenterX)
+        .filter((value): value is number => typeof value === "number");
+      const secondaryCenterX =
+        secondaryValues.length > 0
+          ? secondaryValues.reduce((sum, value) => sum + value, 0) /
+            secondaryValues.length
+          : point.secondaryCenterX;
+
+      return { time: point.time, centerX, secondaryCenterX };
     });
 
     return { points: smoothed, width, height };

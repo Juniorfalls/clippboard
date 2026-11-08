@@ -165,6 +165,50 @@ export function BrandKitForm({ userId }: { userId: string }) {
           />
 
           <div className="flex flex-col gap-1.5">
+            <span className="text-[14px] font-semibold text-soft-black">
+              Podcast layout
+            </span>
+            <div
+              role="radiogroup"
+              aria-label="Podcast layout"
+              className="grid gap-2 sm:grid-cols-2"
+            >
+              {[
+                { value: "single", label: "Single speaker" },
+                { value: "split-screen", label: "Split screen" },
+              ].map((option) => {
+                const active = brandKit.layout === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() =>
+                      setBrandKit((current) => ({
+                        ...current,
+                        layout: option.value as BrandKit["layout"],
+                      }))
+                    }
+                    className={cn(
+                      "rounded-2 border px-4 py-3 text-left text-[14px] font-semibold duration-200",
+                      active
+                        ? "border-brand-blue bg-brand-blue-light text-soft-black"
+                        : "border-border-gray bg-white text-soft-black/70 hover:bg-warm-white hover:text-soft-black",
+                      focusRing
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[14px] text-soft-black/60">
+              Split screen stacks two face-tracked crops for podcast clips.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
             <span className="text-[14px] font-semibold text-soft-black">Logo</span>
             {brandKit.logo ? (
               <div className="flex items-center gap-4 rounded-2xl border border-border-gray bg-white p-4">

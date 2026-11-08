@@ -50,6 +50,7 @@ export interface Clip {
 export interface ProcessingOptions {
   targetAspectRatio: '9:16' | '16:9' | '1:1';
   resolution: '1080p' | '4K';
+  layout: 'single' | 'split-screen';
   animationText: string; // The specific text to overlay
   animationStyle: 'single-line';
   brandColor: string;
