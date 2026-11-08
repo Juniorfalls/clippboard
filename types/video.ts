@@ -25,6 +25,12 @@ export interface BRollSuggestion {
   url?: string;
 }
 
+export interface Voiceover {
+  voice: string;
+  script: string;
+  audioUrl: string;
+}
+
 export interface Clip {
   id: string;
   title: string;
@@ -34,6 +40,7 @@ export interface Clip {
   viralityScore: number; // AI virality rating from 1 to 100
   cutRanges?: TimeRange[]; // Removed spoken-word ranges in source time
   broll?: BRollSuggestion[];
+  voiceover?: Voiceover;
   status: 'pending' | 'processing' | 'completed' | 'error' | 'scheduled';
   scheduledFor?: string;
   publishPlatforms?: string[];

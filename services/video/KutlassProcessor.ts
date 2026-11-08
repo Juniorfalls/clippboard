@@ -335,6 +335,8 @@ export class KutlassProcessor implements IVideoProcessor {
     const subtitleName = `captions-${id}.ass`;
     const duration = Math.max(0.1, clip.endTime - clip.startTime);
     const brollFileNames: string[] = [];
+    const voiceoverFileName = `voiceover-${id}.mp3`;
+    let hasVoiceover = false;
 
     const handleProgress = ({ progress }: { progress: number }) => {
       if (Number.isFinite(progress)) {
@@ -409,36 +411,71 @@ export class KutlassProcessor implements IVideoProcessor {
         }
       }
 
+      if (clip.voiceover?.audioUrl) {
+        try {
+          const response = await fetch(clip.voiceover.audioUrl);
+          if (response.ok) {
+            const data = new Uint8Array(await response.arrayBuffer());
+            if (data.byteLength > 0) {
+              await ffmpeg.writeFile(voiceoverFileName, data);
+              hasVoiceover = true;
+            }
+          }
+        } catch (error) {
+          console.warn('[KutlassProcessor] Could not load voiceover audio.', error);
+        }
+      }
+
       const hasBroll = brollFiles.length > 0;
       let filterGraph: string | null = null;
 
-      if (hasBroll) {
-        let graph = `[0:v]${filters.length > 0 ? filters.join(',') : 'null'}[base0]`;
-        let current = 'base0';
+      if (hasBroll || hasVoiceover) {
+        let graph = '';
 
-        brollFiles.forEach((broll, index) => {
-          const fade = Math.min(0.35, Math.max(0.1, broll.duration / 4));
-          const fadeOutStart = Math.max(0, broll.duration - fade);
-          const end = broll.start + broll.duration;
+        if (hasBroll) {
+          graph = `[0:v]${filters.length > 0 ? filters.join(',') : 'null'}[base0]`;
+          let current = 'base0';
 
+          brollFiles.forEach((broll, index) => {
+            const fade = Math.min(0.35, Math.max(0.1, broll.duration / 4));
+            const fadeOutStart = Math.max(0, broll.duration - fade);
+            const end = broll.start + broll.duration;
+
+            graph +=
+              `;[${index + 1}:v]` +
+              `scale=${brollDimensions.width}:${brollDimensions.height}:force_original_aspect_ratio=increase,` +
+              `crop=${brollDimensions.width}:${brollDimensions.height},` +
+              `trim=duration=${broll.duration.toFixed(3)},setpts=PTS-STARTPTS,` +
+              `fade=t=in:st=0:d=${fade.toFixed(3)},` +
+              `fade=t=out:st=${fadeOutStart.toFixed(
+                3
+              )}:d=${fade.toFixed(3)},` +
+              `setpts=PTS+${broll.start.toFixed(3)}/TB[b${index}]`;
+            graph +=
+              `;[${current}][b${index}]overlay=(W-w)/2:(H-h)/2:` +
+              `enable='between(t,${broll.start.toFixed(3)},${end.toFixed(3)})':` +
+              `eof_action=pass[v${index}]`;
+            current = `v${index}`;
+          });
+
+          graph += `;[${current}]null[vout]`;
+        } else {
+          graph = `[0:v]${
+            filters.length > 0 ? filters.join(',') : 'null'
+          }[vout]`;
+        }
+
+        if (hasVoiceover) {
+          const voiceoverIndex = 1 + brollFiles.length;
+          const baseAudio = audioFilters.length > 0
+            ? audioFilters.join(',')
+            : 'anull';
+          graph += `;[0:a]${baseAudio},volume=0.7[basea]`;
+          graph += `;[${voiceoverIndex}:a]volume=1.0,adelay=0|0[voa]`;
           graph +=
-            `;[${index + 1}:v]` +
-            `scale=${brollDimensions.width}:${brollDimensions.height}:force_original_aspect_ratio=increase,` +
-            `crop=${brollDimensions.width}:${brollDimensions.height},` +
-            `trim=duration=${broll.duration.toFixed(3)},setpts=PTS-STARTPTS,` +
-            `fade=t=in:st=0:d=${fade.toFixed(3)},` +
-            `fade=t=out:st=${fadeOutStart.toFixed(
-              3
-            )}:d=${fade.toFixed(3)},` +
-            `setpts=PTS+${broll.start.toFixed(3)}/TB[b${index}]`;
-          graph +=
-            `;[${current}][b${index}]overlay=(W-w)/2:(H-h)/2:` +
-            `enable='between(t,${broll.start.toFixed(3)},${end.toFixed(3)})':` +
-            `eof_action=pass[v${index}]`;
-          current = `v${index}`;
-        });
+            ';[basea][voa]amix=inputs=2:duration=first:dropout_transition=2[aout]';
+        }
 
-        graph += `;[${current}]null[vout]`;
         filterGraph = graph;
       }
 
@@ -453,12 +490,20 @@ export class KutlassProcessor implements IVideoProcessor {
           '-i',
           broll.name,
         ]),
+        ...(hasVoiceover ? ['-i', voiceoverFileName] : []),
         '-t',
         duration.toFixed(3),
         ...(filterGraph
-          ? ['-filter_complex', filterGraph, '-map', '[vout]', '-map', '0:a?']
+          ? [
+              '-filter_complex',
+              filterGraph,
+              '-map',
+              '[vout]',
+              '-map',
+              hasVoiceover ? '[aout]' : '0:a?',
+            ]
           : ['-vf', filters.join(',')]),
-        ...(audioFilters.length > 0
+        ...(audioFilters.length > 0 && !hasVoiceover
           ? ['-af', audioFilters.join(',')]
           : []),
         '-c:v',
@@ -496,6 +541,7 @@ export class KutlassProcessor implements IVideoProcessor {
       ffmpeg.off('progress', handleProgress);
       await ffmpeg.deleteFile(inputName).catch(() => undefined);
       await ffmpeg.deleteFile(subtitleName).catch(() => undefined);
+      await ffmpeg.deleteFile(voiceoverFileName).catch(() => undefined);
       await Promise.all(
         brollFileNames.map((name) =>
           ffmpeg.deleteFile(name).catch(() => undefined)
@@ -545,6 +591,7 @@ export class KutlassProcessor implements IVideoProcessor {
       `[KutlassProcessor] Rendering "${clip.title}" (${clip.startTime}s - ${clip.endTime}s) from "${sourceFile.name}" as ${options.targetAspectRatio} ${options.resolution}.`,
       `Brand styling: ${options.brandColor}, ${options.brandFont}, logo ${options.brandLogo ? 'included' : 'none'}.`,
       clip.broll?.length ? `${clip.broll.length} B-roll overlay(s) queued.` : 'No B-roll overlays for this clip.',
+      clip.voiceover ? `Voiceover queued (${clip.voiceover.voice}).` : 'No voiceover for this clip.',
       assContent
         ? 'Animated ASS captions generated for this clip.'
         : 'No transcript captions available for this clip.'

@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Captions, RotateCcw, Scissors, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
+import { AudioLines, Captions, RotateCcw, Scissors, Trash2, X } from "lucide-react";
+import { CustomSelect } from "@/components/CustomSelect";
+import { CustomTextArea } from "@/components/CustomTextArea";
 import { VideoPreview } from "@/components/VideoPreview";
 import { cn } from "@/lib/utils";
-import type { Clip, TimeRange, TranscriptSegment } from "@/types/video";
+import type { Clip, TimeRange, TranscriptSegment, Voiceover } from "@/types/video";
 
 const MIN_DURATION = 1;
 const BARS = Array.from({ length: 72 }, (_, index) => {
@@ -16,7 +19,16 @@ const BARS = Array.from({ length: 72 }, (_, index) => {
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
-type EditorTab = "timeline" | "transcript";
+const VOICE_OPTIONS = [
+  { value: "alloy", label: "Alloy" },
+  { value: "echo", label: "Echo" },
+  { value: "fable", label: "Fable" },
+  { value: "onyx", label: "Onyx" },
+  { value: "nova", label: "Nova" },
+  { value: "shimmer", label: "Shimmer" },
+];
+
+type EditorTab = "timeline" | "transcript" | "voiceover";
 
 type ClipWord = {
   key: string;
@@ -120,6 +132,10 @@ export function TrimModal({
   const [removedWordKeys, setRemovedWordKeys] = useState<Set<string>>(
     new Set()
   );
+  const [voice, setVoice] = useState("alloy");
+  const [script, setScript] = useState("");
+  const [voiceover, setVoiceover] = useState<Voiceover | null>(null);
+  const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
 
   const bounds = boundsRef.current;
   const range = Math.max(bounds.end - bounds.start, MIN_DURATION);
@@ -134,6 +150,10 @@ export function TrimModal({
     setEnd(clip.endTime);
     setActiveTab("timeline");
     setSelectedWordKeys(new Set());
+    setVoice(clip.voiceover?.voice ?? "alloy");
+    setScript(clip.voiceover?.script ?? "");
+    setVoiceover(clip.voiceover ?? null);
+    setIsGeneratingVoiceover(false);
 
     const removed = new Set<string>();
     clipWords.forEach((word) => {
@@ -144,7 +164,7 @@ export function TrimModal({
       if (isRemoved) removed.add(word.key);
     });
     setRemovedWordKeys(removed);
-  }, [open, clip.startTime, clip.endTime, clip.cutRanges, clipWords]);
+  }, [open, clip.startTime, clip.endTime, clip.cutRanges, clipWords, clip.voiceover]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -223,6 +243,46 @@ export function TrimModal({
     setSelectedWordKeys(new Set());
   }
 
+  async function generateVoiceover() {
+    const trimmed = script.trim();
+
+    if (!trimmed) {
+      toast.error("Add a script first", {
+        description: "Write or paste what the voiceover should say.",
+      });
+      return;
+    }
+
+    setIsGeneratingVoiceover(true);
+
+    try {
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice, script: trimmed }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { audioUrl?: string; error?: string }
+        | null;
+
+      if (!response.ok || !data?.audioUrl) {
+        throw new Error(data?.error || "Voiceover generation failed.");
+      }
+
+      setVoiceover({ voice, script: trimmed, audioUrl: data.audioUrl });
+      toast.success("Voiceover generated", {
+        description: "Save the clip to mix it into the final render.",
+      });
+    } catch (error) {
+      toast.error("Could not generate voiceover", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setIsGeneratingVoiceover(false);
+    }
+  }
+
   function handleSave() {
     const removedWords = clipWords.filter((word) =>
       removedWordKeys.has(word.key)
@@ -237,6 +297,7 @@ export function TrimModal({
       endTime: Math.round(end * 10) / 10,
       duration: Math.round((end - start) * 10) / 10,
       cutRanges,
+      voiceover: voiceover ?? undefined,
     });
     onOpenChange(false);
   }
@@ -319,6 +380,22 @@ export function TrimModal({
             >
               <Captions className="h-4 w-4" aria-hidden />
               Transcript
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "voiceover"}
+              onClick={() => setActiveTab("voiceover")}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-semibold duration-200",
+                activeTab === "voiceover"
+                  ? "bg-white text-soft-black shadow-sm"
+                  : "text-soft-black/60 hover:text-soft-black",
+                focusRing
+              )}
+            >
+              <AudioLines className="h-4 w-4" aria-hidden />
+              Voiceover
             </button>
           </div>
 
@@ -444,7 +521,7 @@ export function TrimModal({
                   <span>Drag handles or use arrow keys</span>
                 </div>
               </div>
-            ) : (
+            ) : activeTab === "transcript" ? (
               <div className="flex flex-col gap-3">
                 <div
                   className="no-scrollbar flex max-h-[260px] flex-wrap content-start gap-1.5 overflow-y-auto rounded-2 border border-border-gray bg-warm-white p-3"
@@ -529,6 +606,70 @@ export function TrimModal({
                 <p className="text-[12px] font-normal text-soft-black/50">
                   Deleted words become jump cuts. Tap a struck-through word to
                   restore it.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <CustomSelect
+                  label="Voice"
+                  value={voice}
+                  onValueChange={(value) => {
+                    setVoice(value);
+                    setVoiceover(null);
+                  }}
+                  options={VOICE_OPTIONS}
+                />
+                <CustomTextArea
+                  label="Voiceover script"
+                  value={script}
+                  onChange={(value) => {
+                    setScript(value);
+                    if (voiceover && value.trim() !== voiceover.script) {
+                      setVoiceover(null);
+                    }
+                  }}
+                  placeholder="Paste or write the voiceover script here..."
+                  hint="The generated voiceover will be mixed with the clip's original audio."
+                  maxLength={1000}
+                  rows={5}
+                  disabled={isGeneratingVoiceover}
+                />
+                {voiceover && (
+                  <div className="flex items-center justify-between gap-3 rounded-2 border border-brand-blue-light bg-brand-blue-light/50 px-3 py-2.5">
+                    <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-soft-black">
+                      <AudioLines className="h-4 w-4 text-brand-blue" aria-hidden />
+                      Voiceover ready · {voiceover.voice}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setVoiceover(null)}
+                      className={cn(
+                        "rounded-lg px-2 py-1 text-[12px] font-semibold text-soft-black/60 duration-200 hover:bg-white hover:text-soft-black",
+                        focusRing
+                      )}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void generateVoiceover()}
+                    disabled={isGeneratingVoiceover || !script.trim()}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+                      "disabled:cursor-not-allowed disabled:bg-brand-blue-light disabled:text-soft-black/60",
+                      focusRing
+                    )}
+                  >
+                    <AudioLines className="h-4 w-4" aria-hidden />
+                    {isGeneratingVoiceover ? "Generating..." : "Generate voiceover"}
+                  </button>
+                </div>
+                <p className="text-[12px] font-normal text-soft-black/50">
+                  Generate the voiceover, then save the clip to re-render with
+                  mixed audio.
                 </p>
               </div>
             )}
