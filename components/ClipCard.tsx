@@ -24,10 +24,13 @@ function formatDuration(seconds: number) {
   return `${m}:${s}`;
 }
 
-async function downloadClip(clip: Clip) {
+export async function downloadClip(
+  clip: Clip,
+  { silent = false }: { silent?: boolean } = {}
+) {
   if (!clip.url) {
-    toast.error("This clip is not ready yet");
-    return;
+    if (!silent) toast.error("This clip is not ready yet");
+    return false;
   }
 
   try {
@@ -42,11 +45,15 @@ async function downloadClip(clip: Clip) {
     a.click();
     a.remove();
     URL.revokeObjectURL(href);
-    toast.success("Download started", { description: clip.title });
+    if (!silent) toast.success("Download started", { description: clip.title });
+    return true;
   } catch {
-    toast.error("Download failed", {
-      description: "The rendered clip could not be downloaded.",
-    });
+    if (!silent) {
+      toast.error("Download failed", {
+        description: "The rendered clip could not be downloaded.",
+      });
+    }
+    return false;
   }
 }
 
