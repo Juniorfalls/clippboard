@@ -342,14 +342,14 @@ export default function HomePage() {
     <div className="min-h-screen bg-warm-white text-soft-black">
       <header className="sticky top-0 z-40 border-b border-border-gray/70 bg-warm-white/90 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-4 py-4">
+          <Link
+            href="/"
+            aria-label="Clippboard home"
+            className={cn("rounded-lg", focusRing)}
+          >
+            <Logo />
+          </Link>
           <div className="flex items-center gap-8">
-            <Link
-              href="/"
-              aria-label="Clippboard home"
-              className={cn("rounded-lg", focusRing)}
-            >
-              <Logo />
-            </Link>
             <nav
               aria-label="Landing page sections"
               className="hidden items-center gap-6 md:flex"
@@ -373,26 +373,26 @@ export default function HomePage() {
                 Pricing
               </Link>
             </nav>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className={cn(
-                "hidden rounded-lg px-3 py-2 text-[14px] font-semibold text-soft-black/70 duration-200 hover:bg-white hover:text-soft-black sm:inline-flex",
-                focusRing
-              )}
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/login"
-              className={cn(
-                "inline-flex items-center justify-center rounded-2 bg-brand-blue px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
-                focusRing
-              )}
-            >
-              Start Clipping
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/login"
+                className={cn(
+                  "hidden rounded-lg px-3 py-2 text-[14px] font-semibold text-soft-black/70 duration-200 hover:bg-white hover:text-soft-black sm:inline-flex",
+                  focusRing
+                )}
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/login"
+                className={cn(
+                  "inline-flex items-center justify-center rounded-2 bg-brand-blue px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+                  focusRing
+                )}
+              >
+                Start Clipping
+              </Link>
+            </div>
           </div>
         </div>
       </header>
