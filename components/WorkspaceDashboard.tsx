@@ -173,6 +173,55 @@ export function WorkspaceDashboard() {
     }
   }
 
+  async function handleTrimClip(updatedClip: Clip) {
+    if (!uploadedFile) {
+      toast.error("Video unavailable", {
+        description: "Re-upload the source video before trimming this clip.",
+      });
+      return;
+    }
+
+    updateClip(updatedClip.id, {
+      startTime: updatedClip.startTime,
+      endTime: updatedClip.endTime,
+      duration: updatedClip.duration,
+      status: "processing",
+    });
+    setProgressById((previous) => ({ ...previous, [updatedClip.id]: 0 }));
+
+    try {
+      const processor = getVideoProcessor();
+      const options: ProcessingOptions = {
+        targetAspectRatio: format,
+        resolution,
+        animationText: overlayText,
+        animationStyle: "single-line",
+      };
+
+      const url = await processor.processClip(
+        uploadedFile,
+        updatedClip,
+        options,
+        (progress) => {
+          setProgressById((previous) => ({
+            ...previous,
+            [updatedClip.id]: Math.round(progress),
+          }));
+        }
+      );
+
+      setProgressById((previous) => ({ ...previous, [updatedClip.id]: 100 }));
+      updateClip(updatedClip.id, { status: "completed", url });
+      toast.success("Trim saved", { description: updatedClip.title });
+    } catch (error) {
+      updateClip(updatedClip.id, { status: "error" });
+      toast.error("Could not re-render clip", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+    }
+  }
+
   return (
     <div className="flex flex-col gap-10">
       <header className="flex flex-col gap-4">
@@ -317,7 +366,11 @@ export function WorkspaceDashboard() {
             ))}
           </div>
         ) : clips.length > 0 ? (
-          <ClipGallery clips={clips} progressById={progressById} />
+          <ClipGallery
+            clips={clips}
+            progressById={progressById}
+            onTrim={handleTrimClip}
+          />
         ) : (
           <div className="relative flex flex-col items-center overflow-hidden rounded-3 border border-dashed border-border-gray bg-white px-6 py-16 text-center">
             <div

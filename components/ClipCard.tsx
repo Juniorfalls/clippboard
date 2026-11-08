@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Download, Pause, Play, Volume2, VolumeX } from "lucide-react";
+import { useState } from "react";
+import { Download, Play, Scissors } from "lucide-react";
 import { toast } from "sonner";
+import { TrimModal } from "@/components/TrimModal";
+import { VideoPreview } from "@/components/VideoPreview";
 import { cn } from "@/lib/utils";
 import type { Clip } from "@/types/video";
 
@@ -55,106 +57,6 @@ export async function downloadClip(
     }
     return false;
   }
-}
-
-function VideoPreview({ clip }: { clip: Clip }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(clip.duration);
-
-  function togglePlayback() {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (video.paused) {
-      void video.play().catch(() => {
-        toast.error("Preview could not start");
-      });
-    } else {
-      video.pause();
-    }
-  }
-
-  function toggleMute() {
-    const video = videoRef.current;
-    if (!video) return;
-    video.muted = !video.muted;
-    setIsMuted(video.muted);
-  }
-
-  return (
-    <div className="relative h-full w-full bg-soft-black">
-      <video
-        ref={videoRef}
-        src={clip.url}
-        aria-label={`Preview of ${clip.title}`}
-        playsInline
-        preload="metadata"
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={() => setIsPlaying(false)}
-        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-        onLoadedMetadata={(event) => {
-          const value = event.currentTarget.duration;
-          if (Number.isFinite(value)) setDuration(value);
-        }}
-        className="h-full w-full cursor-pointer object-cover"
-      />
-
-      {!isPlaying && (
-        <button
-          type="button"
-          onClick={togglePlayback}
-          aria-label={`Play ${clip.title}`}
-          className={cn(
-            "absolute inset-0 m-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-soft-black shadow-lg duration-200 hover:bg-white",
-            focusRing
-          )}
-        >
-          <Play className="ml-0.5 h-6 w-6" aria-hidden />
-        </button>
-      )}
-
-      <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-soft-black/85 to-transparent p-3 pt-8 text-warm-white">
-        <button
-          type="button"
-          onClick={togglePlayback}
-          aria-label={isPlaying ? `Pause ${clip.title}` : `Play ${clip.title}`}
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full bg-warm-white/15 duration-200 hover:bg-warm-white/25",
-            focusRing
-          )}
-        >
-          {isPlaying ? (
-            <Pause className="h-4 w-4" aria-hidden />
-          ) : (
-            <Play className="ml-0.5 h-4 w-4" aria-hidden />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={toggleMute}
-          aria-label={isMuted ? "Unmute clip" : "Mute clip"}
-          aria-pressed={isMuted}
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full bg-warm-white/15 duration-200 hover:bg-warm-white/25",
-            focusRing
-          )}
-        >
-          {isMuted ? (
-            <VolumeX className="h-4 w-4" aria-hidden />
-          ) : (
-            <Volume2 className="h-4 w-4" aria-hidden />
-          )}
-        </button>
-        <span className="ml-auto text-[12px] font-semibold tabular-nums">
-          {formatDuration(currentTime)} / {formatDuration(duration)}
-        </span>
-      </div>
-    </div>
-  );
 }
 
 function ProcessingPreview({
@@ -229,11 +131,14 @@ export function ClipCard({
   clip,
   index,
   progress,
+  onTrim,
 }: {
   clip: Clip;
   index: number;
   progress: number;
+  onTrim?: (clip: Clip) => void;
 }) {
+  const [isTrimOpen, setIsTrimOpen] = useState(false);
   const isCompleted = clip.status === "completed" && Boolean(clip.url);
   const isProcessing = clip.status === "processing";
 
@@ -266,24 +171,49 @@ export function ClipCard({
             Browser rendering in progress. Please keep tab open.
           </p>
         ) : isCompleted ? (
-          <button
-            type="button"
-            onClick={() => void downloadClip(clip)}
-            aria-label={`Download ${clip.title}`}
-            className={cn(
-              "inline-flex w-full items-center justify-center gap-2 rounded-2 bg-brand-blue px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
-              focusRing
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => void downloadClip(clip)}
+              aria-label={`Download ${clip.title}`}
+              className={cn(
+                "inline-flex w-full items-center justify-center gap-2 rounded-2 bg-brand-blue px-3 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+                focusRing
+              )}
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              Download
+            </button>
+            {onTrim && (
+              <button
+                type="button"
+                onClick={() => setIsTrimOpen(true)}
+                aria-label={`Trim ${clip.title}`}
+                className={cn(
+                  "inline-flex w-full items-center justify-center gap-2 rounded-2 border border-border-gray bg-white px-3 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                  focusRing
+                )}
+              >
+                <Scissors className="h-4 w-4" aria-hidden />
+                Trim
+              </button>
             )}
-          >
-            <Download className="h-4 w-4" aria-hidden />
-            Download
-          </button>
+          </div>
         ) : (
           <p className="text-[12px] font-normal text-soft-black/60">
             {clip.status === "error" ? "Please generate this clip again." : "Waiting to render."}
           </p>
         )}
       </div>
+
+      {onTrim && (
+        <TrimModal
+          clip={clip}
+          open={isTrimOpen}
+          onOpenChange={setIsTrimOpen}
+          onSave={onTrim}
+        />
+      )}
     </article>
   );
 }

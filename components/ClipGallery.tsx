@@ -13,9 +13,11 @@ const focusRing =
 export function ClipGallery({
   clips,
   progressById,
+  onTrim,
 }: {
   clips: Clip[];
   progressById: Record<string, number>;
+  onTrim?: (clip: Clip) => void;
 }) {
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const completedClips = clips.filter(
@@ -75,7 +77,12 @@ export function ClipGallery({
       <ul className="grid grid-cols-1 gap-4 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {clips.map((clip, i) => (
           <li key={clip.id} className="mx-auto w-full max-w-sm xs:max-w-none">
-            <ClipCard clip={clip} index={i} progress={progressById[clip.id] ?? 0} />
+            <ClipCard
+              clip={clip}
+              index={i}
+              progress={progressById[clip.id] ?? 0}
+              onTrim={onTrim}
+            />
           </li>
         ))}
       </ul>
