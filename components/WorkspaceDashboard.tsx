@@ -383,6 +383,7 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
             clips={clips}
             progressById={progressById}
             onTrim={handleTrimClip}
+            transcript={transcript}
           />
         ) : (
           <div className="relative flex flex-col items-center overflow-hidden rounded-3 border border-dashed border-border-gray bg-white px-6 py-16 text-center">

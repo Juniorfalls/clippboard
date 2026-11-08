@@ -149,15 +149,31 @@ export async function POST(request: Request) {
       file: audioFile,
       model: transcriptionModel,
       response_format: "verbose_json",
-      timestamp_granularities: ["segment"],
+      timestamp_granularities: ["segment", "word"],
     });
 
-    transcriptSegments = (transcription.segments ?? [])
-      .map((segment) => ({
-        start: roundToHundredths(Math.max(0, segment.start)),
-        end: roundToHundredths(Math.max(0, segment.end)),
-        text: segment.text.trim(),
+    const transcriptWords = (transcription.words ?? [])
+      .map((word) => ({
+        word: word.word.trim(),
+        start: roundToHundredths(Math.max(0, word.start)),
+        end: roundToHundredths(Math.max(0, word.end)),
       }))
+      .filter((word) => word.word.length > 0 && word.end > word.start);
+
+    transcriptSegments = (transcription.segments ?? [])
+      .map((segment) => {
+        const start = roundToHundredths(Math.max(0, segment.start));
+        const end = roundToHundredths(Math.max(0, segment.end));
+
+        return {
+          start,
+          end,
+          text: segment.text.trim(),
+          words: transcriptWords.filter(
+            (word) => word.end > start && word.start < end
+          ),
+        };
+      })
       .filter((segment) => segment.text.length > 0 && segment.end > segment.start);
 
     transcript = buildTranscript(transcription.segments, transcription.text);

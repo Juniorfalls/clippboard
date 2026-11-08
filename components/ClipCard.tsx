@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { TrimModal } from "@/components/TrimModal";
 import { VideoPreview } from "@/components/VideoPreview";
 import { cn } from "@/lib/utils";
-import type { Clip } from "@/types/video";
+import type { Clip, TranscriptSegment } from "@/types/video";
 
 const THUMB_GRADIENTS = [
   "from-blue-200 to-blue-500",
@@ -132,11 +132,13 @@ export function ClipCard({
   index,
   progress,
   onTrim,
+  transcript,
 }: {
   clip: Clip;
   index: number;
   progress: number;
   onTrim?: (clip: Clip) => void;
+  transcript?: TranscriptSegment[];
 }) {
   const [isTrimOpen, setIsTrimOpen] = useState(false);
   const isCompleted = clip.status === "completed" && Boolean(clip.url);
@@ -219,6 +221,7 @@ export function ClipCard({
           open={isTrimOpen}
           onOpenChange={setIsTrimOpen}
           onSave={onTrim}
+          transcript={transcript}
         />
       )}
     </article>

@@ -1,9 +1,21 @@
 // types/video.ts
 
+export interface TranscriptWord {
+  word: string;
+  start: number;
+  end: number;
+}
+
 export interface TranscriptSegment {
   start: number;
   end: number;
   text: string;
+  words?: TranscriptWord[];
+}
+
+export interface TimeRange {
+  start: number;
+  end: number;
 }
 
 export interface Clip {
@@ -13,6 +25,7 @@ export interface Clip {
   endTime: number;   // in seconds
   duration: number;
   viralityScore: number; // AI virality rating from 1 to 100
+  cutRanges?: TimeRange[]; // Removed spoken-word ranges in source time
   status: 'pending' | 'processing' | 'completed' | 'error';
   url?: string;      // The final rendered video blob URL
 }

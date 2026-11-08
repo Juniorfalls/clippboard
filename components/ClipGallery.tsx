@@ -5,7 +5,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { ClipCard, downloadClip } from "@/components/ClipCard";
 import { cn } from "@/lib/utils";
-import type { Clip } from "@/types/video";
+import type { Clip, TranscriptSegment } from "@/types/video";
 
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
@@ -14,10 +14,12 @@ export function ClipGallery({
   clips,
   progressById,
   onTrim,
+  transcript,
 }: {
   clips: Clip[];
   progressById: Record<string, number>;
   onTrim?: (clip: Clip) => void;
+  transcript?: TranscriptSegment[];
 }) {
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const completedClips = clips.filter(
@@ -82,6 +84,7 @@ export function ClipGallery({
               index={i}
               progress={progressById[clip.id] ?? 0}
               onTrim={onTrim}
+              transcript={transcript}
             />
           </li>
         ))}

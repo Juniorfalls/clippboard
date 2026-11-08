@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Scissors, X } from "lucide-react";
+import { Captions, RotateCcw, Scissors, Trash2, X } from "lucide-react";
 import { VideoPreview } from "@/components/VideoPreview";
 import { cn } from "@/lib/utils";
-import type { Clip } from "@/types/video";
+import type { Clip, TimeRange, TranscriptSegment } from "@/types/video";
 
 const MIN_DURATION = 1;
 const BARS = Array.from({ length: 72 }, (_, index) => {
@@ -16,6 +16,15 @@ const BARS = Array.from({ length: 72 }, (_, index) => {
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
+type EditorTab = "timeline" | "transcript";
+
+type ClipWord = {
+  key: string;
+  word: string;
+  start: number;
+  end: number;
+};
+
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
   const minutes = Math.floor(seconds / 60);
@@ -23,28 +32,119 @@ function formatTime(seconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
 }
 
+function mergeRanges(ranges: TimeRange[]) {
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  return sorted.reduce<TimeRange[]>((merged, range) => {
+    const previous = merged[merged.length - 1];
+    if (previous && range.start <= previous.end + 0.05) {
+      previous.end = Math.max(previous.end, range.end);
+      return merged;
+    }
+
+    merged.push({ ...range });
+    return merged;
+  }, []);
+}
+
+function getClipWords(
+  transcript: TranscriptSegment[] | undefined,
+  clip: Clip
+): ClipWord[] {
+  if (!transcript?.length) return [];
+
+  const words: ClipWord[] = [];
+
+  transcript.forEach((segment, segmentIndex) => {
+    const segmentWords = segment.words?.length
+      ? segment.words
+      : (() => {
+          const tokens = segment.text.trim().split(/\s+/).filter(Boolean);
+          const totalWeight = tokens.reduce(
+            (sum, token) => sum + token.length + 1,
+            0
+          );
+          let elapsed = 0;
+
+          return tokens.map((token) => {
+            const weight = token.length + 1;
+            const start =
+              segment.start +
+              ((segment.end - segment.start) * elapsed) / totalWeight;
+            elapsed += weight;
+            const end =
+              segment.start +
+              ((segment.end - segment.start) * elapsed) / totalWeight;
+            return { word: token, start, end };
+          });
+        })();
+
+    segmentWords.forEach((word, wordIndex) => {
+      if (word.end <= clip.startTime || word.start >= clip.endTime) return;
+
+      words.push({
+        key: `${segmentIndex}-${wordIndex}`,
+        word: word.word,
+        start: word.start,
+        end: word.end,
+      });
+    });
+  });
+
+  return words;
+}
+
 type TrimModalProps = {
   clip: Clip;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (clip: Clip) => void;
+  transcript?: TranscriptSegment[];
 };
 
-export function TrimModal({ clip, open, onOpenChange, onSave }: TrimModalProps) {
+export function TrimModal({
+  clip,
+  open,
+  onOpenChange,
+  onSave,
+  transcript,
+}: TrimModalProps) {
   const boundsRef = useRef({ start: clip.startTime, end: clip.endTime });
   const trackRef = useRef<HTMLDivElement>(null);
   const [start, setStart] = useState(clip.startTime);
   const [end, setEnd] = useState(clip.endTime);
   const [dragging, setDragging] = useState<"start" | "end" | null>(null);
+  const [activeTab, setActiveTab] = useState<EditorTab>("timeline");
+  const [selectedWordKeys, setSelectedWordKeys] = useState<Set<string>>(
+    new Set()
+  );
+  const [removedWordKeys, setRemovedWordKeys] = useState<Set<string>>(
+    new Set()
+  );
 
   const bounds = boundsRef.current;
   const range = Math.max(bounds.end - bounds.start, MIN_DURATION);
+  const clipWords = useMemo(
+    () => getClipWords(transcript, clip),
+    [transcript, clip]
+  );
 
   useEffect(() => {
     if (!open) return;
     setStart(clip.startTime);
     setEnd(clip.endTime);
-  }, [open, clip.startTime, clip.endTime]);
+    setActiveTab("timeline");
+    setSelectedWordKeys(new Set());
+
+    const removed = new Set<string>();
+    clipWords.forEach((word) => {
+      const isRemoved = clip.cutRanges?.some(
+        (range) =>
+          word.start >= range.start - 0.03 && word.end <= range.end + 0.03
+      );
+      if (isRemoved) removed.add(word.key);
+    });
+    setRemovedWordKeys(removed);
+  }, [open, clip.startTime, clip.endTime, clip.cutRanges, clipWords]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -61,9 +161,7 @@ export function TrimModal({ clip, open, onOpenChange, onSave }: TrimModalProps) 
       const time = bounds.start + ratio * range;
 
       if (dragging === "start") {
-        setStart(
-          Math.max(bounds.start, Math.min(time, end - MIN_DURATION))
-        );
+        setStart(Math.max(bounds.start, Math.min(time, end - MIN_DURATION)));
       } else {
         setEnd(Math.min(bounds.end, Math.max(time, start + MIN_DURATION)));
       }
@@ -96,12 +194,49 @@ export function TrimModal({ clip, open, onOpenChange, onSave }: TrimModalProps) 
     }
   }
 
+  function toggleWord(key: string) {
+    if (removedWordKeys.has(key)) {
+      setRemovedWordKeys((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+      return;
+    }
+
+    setSelectedWordKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function deleteSelectedWords() {
+    if (selectedWordKeys.size === 0) return;
+
+    setRemovedWordKeys((current) => {
+      const next = new Set(current);
+      selectedWordKeys.forEach((key) => next.add(key));
+      return next;
+    });
+    setSelectedWordKeys(new Set());
+  }
+
   function handleSave() {
+    const removedWords = clipWords.filter((word) =>
+      removedWordKeys.has(word.key)
+    );
+    const cutRanges = mergeRanges(
+      removedWords.map((word) => ({ start: word.start, end: word.end }))
+    );
+
     onSave({
       ...clip,
       startTime: Math.round(start * 10) / 10,
       endTime: Math.round(end * 10) / 10,
       duration: Math.round((end - start) * 10) / 10,
+      cutRanges,
     });
     onOpenChange(false);
   }
@@ -131,7 +266,7 @@ export function TrimModal({ clip, open, onOpenChange, onSave }: TrimModalProps) 
                 {clip.title}
               </Dialog.Title>
               <Dialog.Description className="text-[14px] text-soft-black/60">
-                Drag the handles to choose the exact start and end of this clip.
+                Trim the timeline or remove spoken words to tighten this clip.
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -148,121 +283,255 @@ export function TrimModal({ clip, open, onOpenChange, onSave }: TrimModalProps) 
             </Dialog.Close>
           </div>
 
-          <div className="mt-5 grid gap-5 md:grid-cols-[200px_1fr] md:items-center">
+          <div
+            role="tablist"
+            aria-label="Trim editor mode"
+            className="mt-5 inline-flex items-center gap-1 rounded-full border border-border-gray bg-warm-white p-1"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "timeline"}
+              onClick={() => setActiveTab("timeline")}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-semibold duration-200",
+                activeTab === "timeline"
+                  ? "bg-white text-soft-black shadow-sm"
+                  : "text-soft-black/60 hover:text-soft-black",
+                focusRing
+              )}
+            >
+              <Scissors className="h-4 w-4" aria-hidden />
+              Timeline
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "transcript"}
+              onClick={() => setActiveTab("transcript")}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-semibold duration-200",
+                activeTab === "transcript"
+                  ? "bg-white text-soft-black shadow-sm"
+                  : "text-soft-black/60 hover:text-soft-black",
+                focusRing
+              )}
+            >
+              <Captions className="h-4 w-4" aria-hidden />
+              Transcript
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-5 md:grid-cols-[200px_1fr] md:items-start">
             <div className="mx-auto w-full max-w-[200px] overflow-hidden rounded-2 border-4 border-brand-blue-light shadow-xl">
               <div className="aspect-[9/16]">
                 <VideoPreview clip={clip} />
               </div>
             </div>
 
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3 text-[14px] font-semibold">
-                <span className="inline-flex items-center gap-2 rounded-full bg-warm-white px-3 py-1.5">
-                  <span className="h-2 w-2 rounded-full bg-brand-blue" aria-hidden />
-                  Start {formatTime(start)}
-                </span>
-                <span className="inline-flex items-center gap-2 rounded-full bg-warm-white px-3 py-1.5">
-                  End {formatTime(end)}
-                  <span className="h-2 w-2 rounded-full bg-brand-blue" aria-hidden />
-                </span>
-              </div>
-
-              <div
-                ref={trackRef}
-                className="relative h-24 select-none overflow-hidden rounded-2 border border-border-gray bg-warm-white"
-              >
-                <div
-                  className="absolute inset-0 flex items-center gap-[2px] px-1 opacity-70"
-                  aria-hidden
-                >
-                  {BARS.map((height, index) => (
-                    <span
-                      key={index}
-                      className="flex-1 rounded-full bg-brand-blue-light"
-                      style={{ height: `${height}%` }}
-                    />
-                  ))}
+            {activeTab === "timeline" ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3 text-[14px] font-semibold">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-warm-white px-3 py-1.5">
+                    <span className="h-2 w-2 rounded-full bg-brand-blue" aria-hidden />
+                    Start {formatTime(start)}
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-warm-white px-3 py-1.5">
+                    End {formatTime(end)}
+                    <span className="h-2 w-2 rounded-full bg-brand-blue" aria-hidden />
+                  </span>
                 </div>
 
                 <div
-                  className="absolute inset-y-0 left-0 bg-soft-black/30"
-                  style={{ width: `${leftPercent}%` }}
-                  aria-hidden
-                />
-                <div
-                  className="absolute inset-y-0 right-0 bg-soft-black/30"
-                  style={{ width: `${rightPercent}%` }}
-                  aria-hidden
-                />
-                <div
-                  className="absolute inset-y-0 border-y-2 border-brand-blue bg-brand-blue/15"
-                  style={{
-                    left: `${leftPercent}%`,
-                    width: `${selectedPercent}%`,
-                  }}
-                  aria-hidden
-                />
-
-                <button
-                  type="button"
-                  role="slider"
-                  aria-label="Clip start time"
-                  aria-valuemin={Math.round(bounds.start)}
-                  aria-valuemax={Math.round(end - MIN_DURATION)}
-                  aria-valuenow={Math.round(start)}
-                  aria-valuetext={formatTime(start)}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    setDragging("start");
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-                      event.preventDefault();
-                      nudge("start", event.key === "ArrowRight" ? 1 : -1);
-                    }
-                  }}
-                  className={cn(
-                    "absolute inset-y-0 z-10 w-5 -translate-x-1/2 cursor-ew-resize rounded-full border-2 border-white bg-brand-blue shadow-lg",
-                    focusRing
-                  )}
-                  style={{ left: `${leftPercent}%` }}
+                  ref={trackRef}
+                  className="relative h-24 select-none overflow-hidden rounded-2 border border-border-gray bg-warm-white"
                 >
-                  <span className="absolute inset-y-3 left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-white/80" />
-                </button>
+                  <div
+                    className="absolute inset-0 flex items-center gap-[2px] px-1 opacity-70"
+                    aria-hidden
+                  >
+                    {BARS.map((height, index) => (
+                      <span
+                        key={index}
+                        className="flex-1 rounded-full bg-brand-blue-light"
+                        style={{ height: `${height}%` }}
+                      />
+                    ))}
+                  </div>
 
-                <button
-                  type="button"
-                  role="slider"
-                  aria-label="Clip end time"
-                  aria-valuemin={Math.round(start + MIN_DURATION)}
-                  aria-valuemax={Math.round(bounds.end)}
-                  aria-valuenow={Math.round(end)}
-                  aria-valuetext={formatTime(end)}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    setDragging("end");
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                  <div
+                    className="absolute inset-y-0 left-0 bg-soft-black/30"
+                    style={{ width: `${leftPercent}%` }}
+                    aria-hidden
+                  />
+                  <div
+                    className="absolute inset-y-0 right-0 bg-soft-black/30"
+                    style={{ width: `${rightPercent}%` }}
+                    aria-hidden
+                  />
+                  <div
+                    className="absolute inset-y-0 border-y-2 border-brand-blue bg-brand-blue/15"
+                    style={{
+                      left: `${leftPercent}%`,
+                      width: `${selectedPercent}%`,
+                    }}
+                    aria-hidden
+                  />
+
+                  <button
+                    type="button"
+                    role="slider"
+                    aria-label="Clip start time"
+                    aria-valuemin={Math.round(bounds.start)}
+                    aria-valuemax={Math.round(end - MIN_DURATION)}
+                    aria-valuenow={Math.round(start)}
+                    aria-valuetext={formatTime(start)}
+                    onPointerDown={(event) => {
                       event.preventDefault();
-                      nudge("end", event.key === "ArrowRight" ? 1 : -1);
-                    }
-                  }}
-                  className={cn(
-                    "absolute inset-y-0 z-10 w-5 translate-x-1/2 cursor-ew-resize rounded-full border-2 border-white bg-brand-blue shadow-lg",
-                    focusRing
-                  )}
-                  style={{ right: `${rightPercent}%` }}
-                >
-                  <span className="absolute inset-y-3 left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-white/80" />
-                </button>
-              </div>
+                      setDragging("start");
+                    }}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "ArrowLeft" ||
+                        event.key === "ArrowRight"
+                      ) {
+                        event.preventDefault();
+                        nudge("start", event.key === "ArrowRight" ? 1 : -1);
+                      }
+                    }}
+                    className={cn(
+                      "absolute inset-y-0 z-10 w-5 -translate-x-1/2 cursor-ew-resize rounded-full border-2 border-white bg-brand-blue shadow-lg",
+                      focusRing
+                    )}
+                    style={{ left: `${leftPercent}%` }}
+                  >
+                    <span className="absolute inset-y-3 left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-white/80" />
+                  </button>
 
-              <div className="flex items-center justify-between text-[12px] font-semibold text-soft-black/60">
-                <span>Clip length {Math.max(end - start, 0).toFixed(1)}s</span>
-                <span>Drag handles or use arrow keys</span>
+                  <button
+                    type="button"
+                    role="slider"
+                    aria-label="Clip end time"
+                    aria-valuemin={Math.round(start + MIN_DURATION)}
+                    aria-valuemax={Math.round(bounds.end)}
+                    aria-valuenow={Math.round(end)}
+                    aria-valuetext={formatTime(end)}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      setDragging("end");
+                    }}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "ArrowLeft" ||
+                        event.key === "ArrowRight"
+                      ) {
+                        event.preventDefault();
+                        nudge("end", event.key === "ArrowRight" ? 1 : -1);
+                      }
+                    }}
+                    className={cn(
+                      "absolute inset-y-0 z-10 w-5 translate-x-1/2 cursor-ew-resize rounded-full border-2 border-white bg-brand-blue shadow-lg",
+                      focusRing
+                    )}
+                    style={{ right: `${rightPercent}%` }}
+                  >
+                    <span className="absolute inset-y-3 left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-white/80" />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-[12px] font-semibold text-soft-black/60">
+                  <span>Clip length {Math.max(end - start, 0).toFixed(1)}s</span>
+                  <span>Drag handles or use arrow keys</span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div
+                  className="no-scrollbar flex max-h-[260px] flex-wrap content-start gap-1.5 overflow-y-auto rounded-2 border border-border-gray bg-warm-white p-3"
+                  aria-label="Clip transcript"
+                >
+                  {clipWords.length === 0 ? (
+                    <p className="text-[14px] text-soft-black/60">
+                      No transcript is available for this clip.
+                    </p>
+                  ) : (
+                    clipWords.map((word) => {
+                      const selected = selectedWordKeys.has(word.key);
+                      const removed = removedWordKeys.has(word.key);
+
+                      return (
+                        <button
+                          key={word.key}
+                          type="button"
+                          onClick={() => toggleWord(word.key)}
+                          aria-pressed={selected}
+                          aria-label={`${removed ? "Restore" : "Select"} ${
+                            word.word
+                          } at ${formatTime(word.start)}`}
+                          className={cn(
+                            "inline-flex flex-col items-center rounded-lg border px-2 py-1 text-[14px] font-semibold leading-[1.2] duration-200",
+                            "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue",
+                            removed
+                              ? "border-transparent bg-transparent text-soft-black/35 line-through hover:bg-white"
+                              : selected
+                                ? "border-brand-blue bg-brand-blue text-soft-black"
+                                : "border-transparent bg-white text-soft-black hover:border-brand-blue-light"
+                          )}
+                        >
+                          <span>{word.word}</span>
+                          <span
+                            className={cn(
+                              "text-[9px] font-normal",
+                              selected ? "text-soft-black/60" : "text-soft-black/40"
+                            )}
+                          >
+                            {formatTime(word.start)}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[12px] font-semibold text-soft-black/60">
+                    {selectedWordKeys.size} selected · {removedWordKeys.size} deleted
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {removedWordKeys.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setRemovedWordKeys(new Set())}
+                        className={cn(
+                          "inline-flex items-center justify-center gap-2 rounded-2 border border-border-gray bg-white px-3 py-2 text-[12px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                          focusRing
+                        )}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                        Restore all
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={deleteSelectedWords}
+                      disabled={selectedWordKeys.size === 0}
+                      className={cn(
+                        "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-3 py-2 text-[12px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+                        "disabled:cursor-not-allowed disabled:bg-brand-blue-light disabled:text-soft-black/60",
+                        focusRing
+                      )}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      Delete selected
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[12px] font-normal text-soft-black/50">
+                  Deleted words become jump cuts. Tap a struck-through word to
+                  restore it.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 flex flex-wrap justify-end gap-3">
