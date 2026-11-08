@@ -324,13 +324,38 @@ export default function HomePage() {
     <div className="min-h-screen bg-warm-white text-soft-black">
       <header className="sticky top-0 z-40 border-b border-border-gray/70 bg-warm-white/90 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-4 py-4">
-          <Link
-            href="/"
-            aria-label="Clippboard home"
-            className={cn("rounded-lg", focusRing)}
-          >
-            <Logo />
-          </Link>
+          <div className="flex items-center gap-8">
+            <Link
+              href="/"
+              aria-label="Clippboard home"
+              className={cn("rounded-lg", focusRing)}
+            >
+              <Logo />
+            </Link>
+            <nav
+              aria-label="Landing page sections"
+              className="hidden items-center gap-6 md:flex"
+            >
+              <Link
+                href="#features"
+                className={cn(
+                  "text-[14px] font-semibold text-soft-black transition-colors duration-200 hover:text-brand-blue",
+                  focusRing
+                )}
+              >
+                Features
+              </Link>
+              <Link
+                href="#pricing"
+                className={cn(
+                  "text-[14px] font-semibold text-soft-black transition-colors duration-200 hover:text-brand-blue",
+                  focusRing
+                )}
+              >
+                Pricing
+              </Link>
+            </nav>
+          </div>
           <div className="flex items-center gap-4">
             <Link
               href="/login"
@@ -375,7 +400,10 @@ export default function HomePage() {
           <HeroMockup />
         </section>
 
-        <section className="bg-soft-black px-4 py-20 text-warm-white sm:px-6 md:py-24">
+        <section
+          id="features"
+          className="scroll-mt-24 bg-soft-black px-4 py-20 text-warm-white sm:px-6 md:py-24"
+        >
           <div className="mx-auto w-full max-w-shell">
             <h2 className="max-w-4xl text-[36px] font-bold leading-[1.03] -tracking-1 sm:text-[48px] lg:text-[64px]">
               Clippboard is the{" "}
@@ -463,7 +491,11 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section aria-labelledby="pricing-heading" className="bg-warm-white px-4 py-20 sm:px-6">
+        <section
+          id="pricing"
+          aria-labelledby="pricing-heading"
+          className="scroll-mt-24 bg-warm-white px-4 py-20 sm:px-6"
+        >
           <div className="mx-auto max-w-5xl">
             <div className="text-center">
               <h2
