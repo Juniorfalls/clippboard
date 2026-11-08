@@ -249,6 +249,50 @@ function HeroMockup() {
   );
 }
 
+const PRICING_TIERS = [
+  {
+    name: "Starter",
+    price: "$0",
+    cadence: "/ month",
+    description: "For creators testing the workflow.",
+    features: ["3 videos/month", "1080p Export", "Watermark applied."],
+    cta: "Start for Free",
+    href: "/login",
+    highlighted: false,
+  },
+  {
+    name: "Pro",
+    price: "$29",
+    cadence: "/ month",
+    description: "For creators shipping content every week.",
+    features: [
+      "Unlimited videos",
+      "4K Export",
+      "Filler word removal",
+      "No watermark",
+      "Karaoke captions",
+    ],
+    cta: "Start 7-Day Free Trial",
+    href: "/login",
+    highlighted: true,
+  },
+  {
+    name: "Agency",
+    price: "$99",
+    cadence: "/ month",
+    description: "For teams producing at scale.",
+    features: [
+      "Everything in Pro",
+      "Final Cut Pro XML Export",
+      "Custom Brand Templates",
+      "MCP Server Access",
+    ],
+    cta: "Contact Sales",
+    href: "mailto:sales@clippboard.com",
+    highlighted: false,
+  },
+];
+
 function SocialIcon({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <a
@@ -415,6 +459,92 @@ export default function HomePage() {
                   ))}
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="pricing-heading" className="bg-warm-white px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-5xl">
+            <div className="text-center">
+              <h2
+                id="pricing-heading"
+                className="text-[36px] font-bold leading-[1.05] -tracking-1 text-soft-black sm:text-[40px]"
+              >
+                Simple pricing for serious creators.
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-[16px] text-gray-500 sm:text-[18px]">
+                Start free, then choose the plan that matches your output.
+              </p>
+            </div>
+
+            <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-3">
+              {PRICING_TIERS.map((tier) => {
+                const card = (
+                  <article
+                    className={cn(
+                      "relative flex h-full flex-col rounded-3 border bg-white p-8",
+                      tier.highlighted
+                        ? "border-2 border-brand-blue shadow-lg"
+                        : "border-gray-200"
+                    )}
+                  >
+                    {tier.highlighted && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-blue px-3 py-1 text-[12px] font-bold text-soft-black">
+                        Most Popular
+                      </span>
+                    )}
+                    <h3 className="text-[24px] font-bold leading-[1.25] text-soft-black">
+                      {tier.name}
+                    </h3>
+                    <p className="mt-2 text-[14px] text-soft-black/60">
+                      {tier.description}
+                    </p>
+                    <div className="mt-6 flex items-end gap-1">
+                      <span className="text-[40px] font-bold leading-none -tracking-1 text-soft-black">
+                        {tier.price}
+                      </span>
+                      <span className="pb-1 text-[14px] font-semibold text-soft-black/50">
+                        {tier.cadence}
+                      </span>
+                    </div>
+                    <hr className="my-6 border-gray-200" />
+                    <ul className="flex flex-1 flex-col gap-3">
+                      {tier.features.map((feature) => (
+                        <li
+                          key={feature}
+                          className="flex items-start gap-2 text-[14px] text-soft-black/75"
+                        >
+                          <CheckMark />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    {tier.highlighted ? (
+                      <Link
+                        href={tier.href}
+                        className={cn(
+                          "mt-8 inline-flex items-center justify-center rounded-2 bg-brand-blue px-5 py-3 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+                          focusRing
+                        )}
+                      >
+                        {tier.cta}
+                      </Link>
+                    ) : (
+                      <Link
+                        href={tier.href}
+                        className={cn(
+                          "mt-8 inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-5 py-3 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                          focusRing
+                        )}
+                      >
+                        {tier.cta}
+                      </Link>
+                    )}
+                  </article>
+                );
+
+                return <div key={tier.name}>{card}</div>;
+              })}
             </div>
           </div>
         </section>
