@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clapperboard, FolderOpen } from "lucide-react";
+import Link from "next/link";
+import { Clapperboard, FolderOpen, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CustomDropzone } from "@/components/CustomDropzone";
@@ -14,6 +15,7 @@ import { getAIAnalyzer } from "@/services/ai";
 import { getVideoProcessor } from "@/services/video";
 import { extractAudio } from "@/lib/extract-audio";
 import { loadBrandKit, type BrandTemplate } from "@/lib/brand-kit";
+import { STARTER_CLIP_LIMIT, type Plan } from "@/lib/plans";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Clip, ProcessingOptions, TranscriptSegment } from "@/types/video";
@@ -69,9 +71,13 @@ type TeamProject = {
 
 export function WorkspaceDashboard({
   userId,
+  plan,
+  initialClipsThisMonth,
   unauthorized = false,
 }: {
   userId: string;
+  plan: Plan;
+  initialClipsThisMonth: number;
   unauthorized?: boolean;
 }) {
   const { activeTeamId, activeTeam } = useTeam();
@@ -92,6 +98,10 @@ export function WorkspaceDashboard({
   const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
   const [projects, setProjects] = useState<TeamProject[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [clipsThisMonth, setClipsThisMonth] = useState(initialClipsThisMonth);
+
+  const starterLimitReached =
+    plan === "starter" && clipsThisMonth >= STARTER_CLIP_LIMIT;
 
   useEffect(() => {
     if (!unauthorized) return;
@@ -101,6 +111,14 @@ export function WorkspaceDashboard({
     });
     window.history.replaceState({}, "", "/dashboard");
   }, [unauthorized]);
+
+  useEffect(() => {
+    if (!starterLimitReached) return;
+
+    toast.error("Starter limit reached. Please upgrade.", {
+      description: `Starter includes ${STARTER_CLIP_LIMIT} generated clips per month.`,
+    });
+  }, [starterLimitReached]);
 
   useEffect(() => {
     const saved = loadBrandKit(userId);
@@ -173,6 +191,13 @@ export function WorkspaceDashboard({
   }
 
   async function handleGenerate() {
+    if (starterLimitReached) {
+      toast.error("Starter limit reached. Please upgrade.", {
+        description: `Upgrade to Pro for unlimited clips.`,
+      });
+      return;
+    }
+
     if (!uploadedFile) {
       toast.error("Add a video first", {
         description: "Drop a raw video above to generate clips.",
@@ -283,6 +308,7 @@ export function WorkspaceDashboard({
 
           setProgressById((previous) => ({ ...previous, [clip.id]: 100 }));
           updateClip(clip.id, { status: "completed", url });
+          setClipsThisMonth((count) => count + 1);
           void persistClip(clip);
         } catch (error) {
           failedCount += 1;
@@ -370,6 +396,7 @@ export function WorkspaceDashboard({
 
       setProgressById((previous) => ({ ...previous, [updatedClip.id]: 100 }));
       updateClip(updatedClip.id, { status: "completed", url });
+      setClipsThisMonth((count) => count + 1);
       void persistClip({
         ...updatedClip,
         duration: updatedClip.endTime - updatedClip.startTime,
@@ -533,9 +560,15 @@ export function WorkspaceDashboard({
           <CustomSelect
             label="Resolution"
             value={resolution}
-            onValueChange={(value) =>
-              setResolution(value as ProcessingOptions["resolution"])
-            }
+            onValueChange={(value) => {
+              if (value === "4K" && plan === "starter") {
+                toast.error("4K export is a Pro feature", {
+                  description: "Upgrade to Pro to render in 4K.",
+                });
+                return;
+              }
+              setResolution(value as ProcessingOptions["resolution"]);
+            }}
             options={RESOLUTIONS}
           />
           {templates.length > 0 && (
@@ -552,20 +585,38 @@ export function WorkspaceDashboard({
               ]}
             />
           )}
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={isProcessing}
-            aria-busy={isProcessing}
-            className={cn(
-              "inline-flex items-center justify-center rounded-xl bg-brand-blue px-8 py-3 text-[16px] font-semibold text-soft-black duration-200",
-              "hover:bg-brand-blue-hover",
-              focusRing,
-              "disabled:cursor-not-allowed disabled:bg-brand-blue-light disabled:text-soft-black/60 md:ml-auto"
+          <div className="flex flex-col gap-2 md:ml-auto md:items-end">
+            {starterLimitReached && (
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-soft-black/60">
+                <Lock className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
+                Starter limit reached.{" "}
+                <Link
+                  href="/#pricing"
+                  className={cn("text-brand-blue underline-offset-2 hover:underline", focusRing)}
+                >
+                  Upgrade to Pro
+                </Link>
+              </p>
             )}
-          >
-            {isProcessing ? "Generating clips" : "Generate 10 Clips"}
-          </button>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={isProcessing || starterLimitReached}
+              aria-busy={isProcessing}
+              className={cn(
+                "inline-flex items-center justify-center rounded-xl bg-brand-blue px-8 py-3 text-[16px] font-semibold text-soft-black duration-200",
+                "hover:bg-brand-blue-hover",
+                focusRing,
+                "disabled:cursor-not-allowed disabled:bg-brand-blue-light disabled:text-soft-black/60"
+              )}
+            >
+              {isProcessing
+                ? "Generating clips"
+                : starterLimitReached
+                  ? "Starter limit reached"
+                  : "Generate 10 Clips"}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -597,6 +648,7 @@ export function WorkspaceDashboard({
             onTrim={handleTrimClip}
             onSchedule={handleScheduleClip}
             transcript={transcript}
+            plan={plan}
           />
         ) : (
           <div className="relative flex flex-col items-center overflow-hidden rounded-3 border border-dashed border-border-gray bg-white px-6 py-16 text-center">

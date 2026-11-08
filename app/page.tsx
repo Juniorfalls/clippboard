@@ -9,6 +9,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { CheckoutButton } from "@/components/CheckoutButton";
 import { Logo, LogoMark } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
@@ -580,15 +581,12 @@ export default function HomePage() {
                       ))}
                     </ul>
                     {tier.highlighted ? (
-                      <Link
-                        href={tier.href}
-                        className={cn(
-                          "mt-8 inline-flex items-center justify-center rounded-2 bg-brand-blue px-5 py-3 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
-                          focusRing
-                        )}
+                      <CheckoutButton
+                        plan="pro"
+                        className="mt-8 inline-flex items-center justify-center rounded-2 bg-brand-blue px-5 py-3 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover disabled:cursor-not-allowed disabled:bg-brand-blue-light"
                       >
                         {tier.cta}
-                      </Link>
+                      </CheckoutButton>
                     ) : (
                       <Link
                         href={tier.href}

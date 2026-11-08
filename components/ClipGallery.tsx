@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ClipCard, downloadClip } from "@/components/ClipCard";
 import { cn } from "@/lib/utils";
 import type { PublishPayload } from "@/components/PublishModal";
+import type { Plan } from "@/lib/plans";
 import type { Clip, TranscriptSegment } from "@/types/video";
 
 const focusRing =
@@ -17,12 +18,14 @@ export function ClipGallery({
   onTrim,
   onSchedule,
   transcript,
+  plan,
 }: {
   clips: Clip[];
   progressById: Record<string, number>;
   onTrim?: (clip: Clip) => void;
   onSchedule?: (clip: Clip, payload: PublishPayload) => void;
   transcript?: TranscriptSegment[];
+  plan: Plan;
 }) {
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const completedClips = clips.filter(
@@ -89,6 +92,7 @@ export function ClipGallery({
               onTrim={onTrim}
               onSchedule={onSchedule}
               transcript={transcript}
+              plan={plan}
             />
           </li>
         ))}

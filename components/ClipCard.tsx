@@ -5,6 +5,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Download,
   FileDown,
+  Lock,
   Minus,
   MoreHorizontal,
   Play,
@@ -19,6 +20,7 @@ import { PublishModal, type PublishPayload } from "@/components/PublishModal";
 import { TrimModal } from "@/components/TrimModal";
 import { VideoPreview } from "@/components/VideoPreview";
 import { downloadFCPXML } from "@/lib/fcpxml";
+import type { Plan } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import type { Clip, TranscriptSegment } from "@/types/video";
 
@@ -198,6 +200,7 @@ export function ClipCard({
   onTrim,
   onSchedule,
   transcript,
+  plan,
 }: {
   clip: Clip;
   index: number;
@@ -205,6 +208,7 @@ export function ClipCard({
   onTrim?: (clip: Clip) => void;
   onSchedule?: (clip: Clip, payload: PublishPayload) => void;
   transcript?: TranscriptSegment[];
+  plan: Plan;
 }) {
   const [isTrimOpen, setIsTrimOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
@@ -319,6 +323,13 @@ export function ClipCard({
               >
                 <DropdownMenu.Item
                   onSelect={() => {
+                    if (plan !== "agency") {
+                      toast.error("Final Cut Pro export is an Agency feature", {
+                        description: "Upgrade to Agency to export FCPXML.",
+                      });
+                      return;
+                    }
+
                     downloadFCPXML(clip, transcript ?? []);
                     toast.success("Final Cut Pro project exported", {
                       description: `${clip.title}.fcpxml`,
@@ -330,8 +341,17 @@ export function ClipCard({
                     "focus-visible:ring-2 focus-visible:ring-brand-blue"
                   )}
                 >
-                  <FileDown className="h-4 w-4 text-brand-blue" aria-hidden />
+                  {plan === "agency" ? (
+                    <FileDown className="h-4 w-4 text-brand-blue" aria-hidden />
+                  ) : (
+                    <Lock className="h-4 w-4 text-soft-black/40" aria-hidden />
+                  )}
                   Export to Final Cut Pro
+                  {plan !== "agency" && (
+                    <span className="ml-auto rounded-full bg-warm-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-soft-black/50">
+                      Agency
+                    </span>
+                  )}
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
