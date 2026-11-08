@@ -337,12 +337,19 @@ function buildAssSubtitles(clip: Clip, options: ProcessingOptions) {
     })
     .filter((segment) => segment.text.length > 0 && segment.end > segment.start);
 
-  if (segments.length === 0) return null;
+  const introText = options.introText?.trim();
+  const outroText = options.outroText?.trim();
+  if (segments.length === 0 && !introText && !outroText) return null;
 
   const fontName = options.brandFont.replace(/[,\r\n]/g, ' ').trim() || 'Inter';
   const fontSize = options.resolution === '4K' ? 88 : 72;
   const highlightColor = hexToAssColor(options.brandColor);
   const marginV = options.targetAspectRatio === '9:16' ? 160 : 96;
+  const removedDuration = cuts.reduce(
+    (total, cut) => total + (cut.end - cut.start),
+    0
+  );
+  const outputDuration = Math.max(0.5, clip.duration - removedDuration);
 
   const events = segments.map((segment) => {
     const text = buildKaraokeText(segment.end - segment.start, segment.text);
@@ -350,6 +357,24 @@ function buildAssSubtitles(clip: Clip, options: ProcessingOptions) {
       segment.end
     )},Brand,,0,0,0,,${text}`;
   });
+
+  if (introText) {
+    const introEnd = Math.min(2.5, outputDuration);
+    events.unshift(
+      `Dialogue: 1,${toAssTime(0)},${toAssTime(
+        introEnd
+      )},Brand,,0,0,0,,{\\an8}${escapeAssText(introText)}`
+    );
+  }
+
+  if (outroText) {
+    const outroStart = Math.max(0, outputDuration - 2.5);
+    events.push(
+      `Dialogue: 1,${toAssTime(outroStart)},${toAssTime(
+        outputDuration
+      )},Brand,,0,0,0,,{\\an8}${escapeAssText(outroText)}`
+    );
+  }
 
   return [
     '[Script Info]',

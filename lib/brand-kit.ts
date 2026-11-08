@@ -1,8 +1,18 @@
+export type BrandTemplate = {
+  id: string;
+  name: string;
+  font: string;
+  color: string;
+  introText: string;
+  outroText: string;
+};
+
 export type BrandKit = {
   color: string;
   font: string;
   logo: string | null;
   layout: "single" | "split-screen";
+  templates: BrandTemplate[];
 };
 
 export const DEFAULT_BRAND_KIT: BrandKit = {
@@ -10,6 +20,7 @@ export const DEFAULT_BRAND_KIT: BrandKit = {
   font: "Inter",
   logo: null,
   layout: "single",
+  templates: [],
 };
 
 export const BRAND_FONT_OPTIONS = [
@@ -52,6 +63,34 @@ export function loadBrandKit(userId: string): BrandKit {
       logo: typeof parsed.logo === "string" ? parsed.logo : null,
       layout:
         parsed.layout === "split-screen" ? "split-screen" : "single",
+      templates: Array.isArray(parsed.templates)
+        ? parsed.templates
+            .filter(
+              (template): template is BrandTemplate =>
+                Boolean(template) &&
+                typeof template === "object" &&
+                typeof template.id === "string" &&
+                typeof template.name === "string" &&
+                typeof template.font === "string" &&
+                typeof template.color === "string" &&
+                isValidHexColor(template.color)
+            )
+            .map((template) => ({
+              id: template.id,
+              name: template.name.trim().slice(0, 40),
+              font: template.font,
+              color: template.color.toUpperCase(),
+              introText:
+                typeof template.introText === "string"
+                  ? template.introText.slice(0, 80)
+                  : "",
+              outroText:
+                typeof template.outroText === "string"
+                  ? template.outroText.slice(0, 80)
+                  : "",
+            }))
+            .filter((template) => template.name.length > 0)
+        : [],
     };
   } catch {
     return DEFAULT_BRAND_KIT;

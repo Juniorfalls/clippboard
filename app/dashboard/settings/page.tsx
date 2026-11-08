@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { BrandKitForm } from "@/components/BrandKitForm";
+import { BrandTemplateManager } from "@/components/BrandTemplateManager";
 import { createClient } from "@/utils/supabase/server";
 
 export default async function BrandKitSettingsPage() {
@@ -25,6 +26,7 @@ export default async function BrandKitSettingsPage() {
       </header>
 
       <BrandKitForm userId={user.id} />
+      <BrandTemplateManager userId={user.id} />
     </div>
   );
 }

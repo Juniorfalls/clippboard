@@ -13,7 +13,7 @@ import type { PublishPayload } from "@/components/PublishModal";
 import { getAIAnalyzer } from "@/services/ai";
 import { getVideoProcessor } from "@/services/video";
 import { extractAudio } from "@/lib/extract-audio";
-import { loadBrandKit } from "@/lib/brand-kit";
+import { loadBrandKit, type BrandTemplate } from "@/lib/brand-kit";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Clip, ProcessingOptions, TranscriptSegment } from "@/types/video";
@@ -78,6 +78,8 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
     useState<ProcessingOptions["resolution"]>("1080p");
   const [layout, setLayout] =
     useState<ProcessingOptions["layout"]>("single");
+  const [templates, setTemplates] = useState<BrandTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("none");
   const [isProcessing, setIsProcessing] = useState(false);
   const [clips, setClips] = useState<Clip[]>([]);
   const [progressById, setProgressById] = useState<Record<string, number>>({});
@@ -86,7 +88,14 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
   const [loadingProjects, setLoadingProjects] = useState(false);
 
   useEffect(() => {
-    setLayout(loadBrandKit(userId).layout);
+    const saved = loadBrandKit(userId);
+    setLayout(saved.layout);
+    setTemplates(saved.templates);
+    setSelectedTemplateId((current) =>
+      saved.templates.some((template) => template.id === current)
+        ? current
+        : "none"
+    );
   }, [userId]);
 
   useEffect(() => {
@@ -201,15 +210,20 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
 
       const processor = getVideoProcessor();
       const brandKit = loadBrandKit(userId);
+      const selectedTemplate = brandKit.templates.find(
+        (template) => template.id === selectedTemplateId
+      );
       const options: ProcessingOptions = {
         targetAspectRatio: format,
         resolution,
         layout,
         animationText: overlayText,
         animationStyle: "single-line",
-        brandColor: brandKit.color,
-        brandFont: brandKit.font,
+        brandColor: selectedTemplate?.color ?? brandKit.color,
+        brandFont: selectedTemplate?.font ?? brandKit.font,
         brandLogo: brandKit.logo ?? undefined,
+        introText: selectedTemplate?.introText || undefined,
+        outroText: selectedTemplate?.outroText || undefined,
         transcript: analysis.transcript ?? [],
       };
 
@@ -290,15 +304,20 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
     try {
       const processor = getVideoProcessor();
       const brandKit = loadBrandKit(userId);
+      const selectedTemplate = brandKit.templates.find(
+        (template) => template.id === selectedTemplateId
+      );
       const options: ProcessingOptions = {
         targetAspectRatio: format,
         resolution,
         layout,
         animationText: overlayText,
         animationStyle: "single-line",
-        brandColor: brandKit.color,
-        brandFont: brandKit.font,
+        brandColor: selectedTemplate?.color ?? brandKit.color,
+        brandFont: selectedTemplate?.font ?? brandKit.font,
         brandLogo: brandKit.logo ?? undefined,
+        introText: selectedTemplate?.introText || undefined,
+        outroText: selectedTemplate?.outroText || undefined,
         transcript,
       };
 
@@ -480,6 +499,20 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
             }
             options={RESOLUTIONS}
           />
+          {templates.length > 0 && (
+            <CustomSelect
+              label="Brand template"
+              value={selectedTemplateId}
+              onValueChange={setSelectedTemplateId}
+              options={[
+                { value: "none", label: "No template" },
+                ...templates.map((template) => ({
+                  value: template.id,
+                  label: template.name,
+                })),
+              ]}
+            />
+          )}
           <button
             type="button"
             onClick={handleGenerate}

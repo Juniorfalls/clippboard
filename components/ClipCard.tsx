@@ -2,7 +2,18 @@
 
 import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Download, FileDown, MoreHorizontal, Play, Scissors, Send, Sparkles } from "lucide-react";
+import {
+  Download,
+  FileDown,
+  Minus,
+  MoreHorizontal,
+  Play,
+  Scissors,
+  Send,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PublishModal, type PublishPayload } from "@/components/PublishModal";
 import { TrimModal } from "@/components/TrimModal";
@@ -27,6 +38,56 @@ function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60);
   const s = String(Math.floor(seconds % 60)).padStart(2, "0");
   return `${m}:${s}`;
+}
+
+function getPredictedAnalytics(score: number) {
+  const views =
+    score >= 90
+        ? "25k – 100k"
+        : score >= 80
+          ? "10k – 50k"
+          : score >= 65
+            ? "5k – 20k"
+            : score >= 50
+              ? "2k – 8k"
+              : score >= 35
+                ? "800 – 3k"
+                : "200 – 1k";
+  const direction = score >= 70 ? "up" : score >= 45 ? "flat" : "down";
+  const Icon =
+    direction === "up" ? TrendingUp : direction === "down" ? TrendingDown : Minus;
+  const tone =
+    score >= 80
+      ? {
+          icon: "text-emerald-600",
+          badge: "bg-emerald-50",
+          stroke: "#059669",
+          label: "High momentum",
+        }
+      : score >= 60
+        ? {
+            icon: "text-brand-blue",
+            badge: "bg-brand-blue-light/60",
+            stroke: "#3B82F6",
+            label: "Strong interest",
+          }
+        : {
+            icon: "text-amber-600",
+            badge: "bg-amber-50",
+            stroke: "#D97706",
+            label: "Niche reach",
+          };
+
+  const drift = (score - 50) / 50;
+  const points = Array.from({ length: 7 }, (_, index) => {
+    const y = Math.min(
+      21,
+      Math.max(3, 14 - drift * (index - 3) * 2.2 + (index % 2 ? 1.5 : -1.5))
+    );
+    return `${index * 6.5},${y.toFixed(1)}`;
+  }).join(" ");
+
+  return { views, Icon, tone, points };
 }
 
 export async function downloadClip(
@@ -176,6 +237,62 @@ export function ClipCard({
             {formatDuration(clip.duration)}
           </span>
         </div>
+
+        {(() => {
+          const analytics = getPredictedAnalytics(clip.viralityScore);
+          const TrendIcon = analytics.Icon;
+          return (
+            <div
+              className="flex items-center justify-between gap-3 rounded-2 bg-warm-white px-3 py-2.5"
+              aria-label={`Predicted views ${analytics.views}. ${analytics.tone.label}.`}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                    analytics.tone.badge,
+                    analytics.tone.icon
+                  )}
+                >
+                  <TrendIcon className="h-4 w-4" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-semibold uppercase tracking-wide text-soft-black/45">
+                    Predicted views
+                  </p>
+                  <p className="truncate text-[12px] font-bold text-soft-black">
+                    {analytics.views}
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-0.5">
+                <svg
+                  viewBox="0 0 40 24"
+                  className="h-7 w-16"
+                  role="img"
+                  aria-label={`${analytics.tone.label} trend`}
+                >
+                  <polyline
+                    points={analytics.points}
+                    fill="none"
+                    stroke={analytics.tone.stroke}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span
+                  className={cn(
+                    "text-[9px] font-semibold",
+                    analytics.tone.icon
+                  )}
+                >
+                  {analytics.tone.label}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="flex items-start justify-between gap-2">
           <h3 className="line-clamp-2 text-[16px] font-semibold leading-[1.25]">
