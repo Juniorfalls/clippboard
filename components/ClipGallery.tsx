@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { ClipCard, downloadClip } from "@/components/ClipCard";
 import { cn } from "@/lib/utils";
+import type { PublishPayload } from "@/components/PublishModal";
 import type { Clip, TranscriptSegment } from "@/types/video";
 
 const focusRing =
@@ -14,11 +15,13 @@ export function ClipGallery({
   clips,
   progressById,
   onTrim,
+  onSchedule,
   transcript,
 }: {
   clips: Clip[];
   progressById: Record<string, number>;
   onTrim?: (clip: Clip) => void;
+  onSchedule?: (clip: Clip, payload: PublishPayload) => void;
   transcript?: TranscriptSegment[];
 }) {
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
@@ -84,6 +87,7 @@ export function ClipGallery({
               index={i}
               progress={progressById[clip.id] ?? 0}
               onTrim={onTrim}
+              onSchedule={onSchedule}
               transcript={transcript}
             />
           </li>

@@ -34,7 +34,9 @@ export interface Clip {
   viralityScore: number; // AI virality rating from 1 to 100
   cutRanges?: TimeRange[]; // Removed spoken-word ranges in source time
   broll?: BRollSuggestion[];
-  status: 'pending' | 'processing' | 'completed' | 'error';
+  status: 'pending' | 'processing' | 'completed' | 'error' | 'scheduled';
+  scheduledFor?: string;
+  publishPlatforms?: string[];
   url?: string;      // The final rendered video blob URL
 }
 

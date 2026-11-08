@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Play, Scissors, Sparkles } from "lucide-react";
+import { Download, Play, Scissors, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { PublishModal, type PublishPayload } from "@/components/PublishModal";
 import { TrimModal } from "@/components/TrimModal";
 import { VideoPreview } from "@/components/VideoPreview";
 import { cn } from "@/lib/utils";
@@ -132,22 +133,27 @@ export function ClipCard({
   index,
   progress,
   onTrim,
+  onSchedule,
   transcript,
 }: {
   clip: Clip;
   index: number;
   progress: number;
   onTrim?: (clip: Clip) => void;
+  onSchedule?: (clip: Clip, payload: PublishPayload) => void;
   transcript?: TranscriptSegment[];
 }) {
   const [isTrimOpen, setIsTrimOpen] = useState(false);
+  const [isPublishOpen, setIsPublishOpen] = useState(false);
+  const isScheduled = clip.status === "scheduled";
   const isCompleted = clip.status === "completed" && Boolean(clip.url);
+  const isReady = (isCompleted || isScheduled) && Boolean(clip.url);
   const isProcessing = clip.status === "processing";
 
   return (
     <article className="flex flex-col overflow-hidden rounded-3 border-4 border-brand-blue-light bg-white">
       <div className="relative aspect-[9/16]">
-        {isCompleted ? (
+        {isReady ? (
           <VideoPreview clip={clip} />
         ) : isProcessing ? (
           <ProcessingPreview clip={clip} index={index} progress={progress} />
@@ -179,33 +185,56 @@ export function ClipCard({
           <p className="text-[12px] font-normal text-soft-black/60">
             Browser rendering in progress. Please keep tab open.
           </p>
-        ) : isCompleted ? (
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => void downloadClip(clip)}
-              aria-label={`Download ${clip.title}`}
-              className={cn(
-                "inline-flex w-full items-center justify-center gap-2 rounded-2 bg-brand-blue px-3 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
-                focusRing
-              )}
-            >
-              <Download className="h-4 w-4" aria-hidden />
-              Download
-            </button>
-            {onTrim && (
+        ) : isReady ? (
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setIsTrimOpen(true)}
-                aria-label={`Trim ${clip.title}`}
+                onClick={() => void downloadClip(clip)}
+                aria-label={`Download ${clip.title}`}
                 className={cn(
-                  "inline-flex w-full items-center justify-center gap-2 rounded-2 border border-border-gray bg-white px-3 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                  "inline-flex w-full items-center justify-center gap-2 rounded-2 bg-brand-blue px-3 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
                   focusRing
                 )}
               >
-                <Scissors className="h-4 w-4" aria-hidden />
-                Trim
+                <Download className="h-4 w-4" aria-hidden />
+                Download
               </button>
+              {onTrim && (
+                <button
+                  type="button"
+                  onClick={() => setIsTrimOpen(true)}
+                  aria-label={`Trim ${clip.title}`}
+                  className={cn(
+                    "inline-flex w-full items-center justify-center gap-2 rounded-2 border border-border-gray bg-white px-3 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                    focusRing
+                  )}
+                >
+                  <Scissors className="h-4 w-4" aria-hidden />
+                  Trim
+                </button>
+              )}
+            </div>
+            {isScheduled ? (
+              <span className="inline-flex items-center justify-center gap-2 rounded-2 border border-brand-blue-light bg-brand-blue-light/60 px-3 py-2.5 text-[12px] font-semibold text-soft-black">
+                <Send className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
+                Scheduled
+              </span>
+            ) : (
+              onSchedule && (
+                <button
+                  type="button"
+                  onClick={() => setIsPublishOpen(true)}
+                  aria-label={`Publish ${clip.title}`}
+                  className={cn(
+                    "inline-flex w-full items-center justify-center gap-2 rounded-2 border border-border-gray bg-white px-3 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                    focusRing
+                  )}
+                >
+                  <Send className="h-4 w-4" aria-hidden />
+                  Publish
+                </button>
+              )
             )}
           </div>
         ) : (
@@ -222,6 +251,15 @@ export function ClipCard({
           onOpenChange={setIsTrimOpen}
           onSave={onTrim}
           transcript={transcript}
+        />
+      )}
+
+      {onSchedule && (
+        <PublishModal
+          clip={clip}
+          open={isPublishOpen}
+          onOpenChange={setIsPublishOpen}
+          onScheduled={onSchedule}
         />
       )}
     </article>

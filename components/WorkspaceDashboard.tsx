@@ -8,6 +8,7 @@ import { CustomDropzone } from "@/components/CustomDropzone";
 import { CustomTextArea } from "@/components/CustomTextArea";
 import { ClipSkeleton } from "@/components/ClipSkeleton";
 import { ClipGallery } from "@/components/ClipGallery";
+import type { PublishPayload } from "@/components/PublishModal";
 import { getAIAnalyzer } from "@/services/ai";
 import { getVideoProcessor } from "@/services/video";
 import { extractAudio } from "@/lib/extract-audio";
@@ -179,6 +180,14 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
       setIsProcessing(false);
       toast.dismiss(statusToastId);
     }
+  }
+
+  function handleScheduleClip(clip: Clip, payload: PublishPayload) {
+    updateClip(clip.id, {
+      status: "scheduled",
+      scheduledFor: payload.scheduledFor,
+      publishPlatforms: payload.platforms,
+    });
   }
 
   async function handleTrimClip(updatedClip: Clip) {
@@ -383,6 +392,7 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
             clips={clips}
             progressById={progressById}
             onTrim={handleTrimClip}
+            onSchedule={handleScheduleClip}
             transcript={transcript}
           />
         ) : (
