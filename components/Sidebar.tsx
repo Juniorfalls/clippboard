@@ -1,11 +1,20 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FolderOpen, Settings, Sparkles, UsersRound, type LucideIcon } from "lucide-react";
+import {
+  FolderOpen,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/Logo";
 import { TeamSwitcher } from "@/components/TeamSwitcher";
+import { createClient } from "@/utils/supabase/client";
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard", label: "Workspace", icon: Sparkles },
@@ -19,6 +28,40 @@ const focusRing =
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkAdmin() {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        const { data } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (!cancelled && data?.is_admin) {
+          setIsAdmin(true);
+        }
+      } catch {
+        // The Admin link stays hidden if the profile cannot be checked.
+      }
+    }
+
+    void checkAdmin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <aside className="sticky top-0 z-30 flex w-full shrink-0 flex-row items-center gap-4 border-b border-border-gray bg-warm-white px-4 py-3 lg:h-screen lg:w-64 lg:flex-col lg:items-stretch lg:border-b-0 lg:border-r lg:px-4 lg:py-6">
@@ -67,6 +110,29 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {isAdmin && (
+          <Link
+            href="/admin"
+            aria-current={pathname === "/admin" ? "page" : undefined}
+            className={cn(
+              "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold duration-200 lg:gap-3 lg:text-[16px]",
+              pathname === "/admin"
+                ? "bg-white text-soft-black shadow-sm"
+                : "text-soft-black/70 hover:bg-white hover:text-soft-black",
+              focusRing
+            )}
+          >
+            <ShieldCheck
+              className={cn(
+                "h-5 w-5",
+                pathname === "/admin" && "text-brand-blue"
+              )}
+              aria-hidden
+            />
+            Admin
+          </Link>
+        )}
       </nav>
     </aside>
   );

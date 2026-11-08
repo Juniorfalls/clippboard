@@ -67,7 +67,13 @@ type TeamProject = {
   created_at: string;
 };
 
-export function WorkspaceDashboard({ userId }: { userId: string }) {
+export function WorkspaceDashboard({
+  userId,
+  unauthorized = false,
+}: {
+  userId: string;
+  unauthorized?: boolean;
+}) {
   const { activeTeamId, activeTeam } = useTeam();
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("Find the 10 best moments from this video.");
@@ -86,6 +92,15 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
   const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
   const [projects, setProjects] = useState<TeamProject[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+
+  useEffect(() => {
+    if (!unauthorized) return;
+
+    toast.error("Unauthorized access", {
+      description: "You do not have permission to view the admin dashboard.",
+    });
+    window.history.replaceState({}, "", "/dashboard");
+  }, [unauthorized]);
 
   useEffect(() => {
     const saved = loadBrandKit(userId);
