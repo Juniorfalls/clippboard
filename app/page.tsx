@@ -183,15 +183,21 @@ function HeroMockup() {
           <div className="mt-3 grid grid-cols-3 gap-2">
             {[
               {
-                src: "https://videos.pexels.com/video-files/3129671/3129671-uhd_1440_2560_30fps.mp4",
+                src: "https://assets.codepen.io/6093409/river.mp4",
+                poster:
+                  "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?q=80&w=600&auto=format&fit=crop",
                 title: "The one habit that changed everything",
               },
               {
-                src: "https://videos.pexels.com/video-files/3130284/3130284-uhd_1440_2560_30fps.mp4",
+                src: "https://www.w3schools.com/html/mov_bbb.mp4",
+                poster:
+                  "https://images.unsplash.com/photo-1621360841012-786b0690274b?q=80&w=600&auto=format&fit=crop",
                 title: "Build a content system that lasts",
               },
               {
-                src: "https://videos.pexels.com/video-files/4125025/4125025-uhd_1440_2560_25fps.mp4",
+                src: "https://assets.codepen.io/6093409/river.mp4",
+                poster:
+                  "https://images.unsplash.com/photo-1589903308904-1010c2294adc?q=80&w=600&auto=format&fit=crop",
                 title: "What great storytelling really needs",
               },
             ].map((clip, index) => (
@@ -205,6 +211,7 @@ function HeroMockup() {
                     loop
                     muted
                     playsInline
+                    poster={clip.poster}
                     aria-hidden
                     className="absolute inset-0 w-full h-full object-cover z-0"
                   >
