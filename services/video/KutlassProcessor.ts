@@ -80,6 +80,16 @@ function buildKaraokeText(duration: number, text: string) {
     .join(' ');
 }
 
+function getBrollDimensions(options: ProcessingOptions) {
+  if (options.targetAspectRatio === '9:16') {
+    return { width: 1080, height: 1920 };
+  }
+  if (options.targetAspectRatio === '1:1') {
+    return { width: 1080, height: 1080 };
+  }
+  return { width: 1920, height: 1080 };
+}
+
 function getRelativeCuts(clip: Clip): TimeRange[] {
   const ranges = (clip.cutRanges ?? [])
     .map((range) => ({
@@ -324,6 +334,7 @@ export class KutlassProcessor implements IVideoProcessor {
     const outputName = `caption-output-${id}.mp4`;
     const subtitleName = `captions-${id}.ass`;
     const duration = Math.max(0.1, clip.endTime - clip.startTime);
+    const brollFileNames: string[] = [];
 
     const handleProgress = ({ progress }: { progress: number }) => {
       if (Number.isFinite(progress)) {
@@ -360,15 +371,93 @@ export class KutlassProcessor implements IVideoProcessor {
           ? [`aselect='not(${cutCondition})'`, 'asetpts=N/SR/TB']
           : [];
 
+      const brollDimensions = getBrollDimensions(options);
+      const removedDuration = cuts.reduce(
+        (total, cut) => total + (cut.end - cut.start),
+        0
+      );
+      const outputDuration = Math.max(0.5, duration - removedDuration);
+      const brollFiles: Array<{
+        name: string;
+        start: number;
+        duration: number;
+      }> = [];
+
+      for (const [index, broll] of (clip.broll ?? []).entries()) {
+        if (!broll.url) continue;
+
+        try {
+          const response = await fetch(broll.url);
+          if (!response.ok) continue;
+
+          const data = new Uint8Array(await response.arrayBuffer());
+          if (data.byteLength === 0) continue;
+
+          const start = mapTimeThroughCuts(broll.startTime, cuts);
+          if (start >= outputDuration - 0.4) continue;
+
+          const brollDuration = Math.min(
+            broll.duration,
+            Math.max(0.4, outputDuration - start)
+          );
+          const name = `broll-${id}-${index}.mp4`;
+          await ffmpeg.writeFile(name, data);
+          brollFileNames.push(name);
+          brollFiles.push({ name, start, duration: brollDuration });
+        } catch (error) {
+          console.warn('[KutlassProcessor] Could not load B-roll clip.', error);
+        }
+      }
+
+      const hasBroll = brollFiles.length > 0;
+      let filterGraph: string | null = null;
+
+      if (hasBroll) {
+        let graph = `[0:v]${filters.length > 0 ? filters.join(',') : 'null'}[base0]`;
+        let current = 'base0';
+
+        brollFiles.forEach((broll, index) => {
+          const fade = Math.min(0.35, Math.max(0.1, broll.duration / 4));
+          const fadeOutStart = Math.max(0, broll.duration - fade);
+          const end = broll.start + broll.duration;
+
+          graph +=
+            `;[${index + 1}:v]` +
+            `scale=${brollDimensions.width}:${brollDimensions.height}:force_original_aspect_ratio=increase,` +
+            `crop=${brollDimensions.width}:${brollDimensions.height},` +
+            `trim=duration=${broll.duration.toFixed(3)},setpts=PTS-STARTPTS,` +
+            `fade=t=in:st=0:d=${fade.toFixed(3)},` +
+            `fade=t=out:st=${fadeOutStart.toFixed(
+              3
+            )}:d=${fade.toFixed(3)},` +
+            `setpts=PTS+${broll.start.toFixed(3)}/TB[b${index}]`;
+          graph +=
+            `;[${current}][b${index}]overlay=(W-w)/2:(H-h)/2:` +
+            `enable='between(t,${broll.start.toFixed(3)},${end.toFixed(3)})':` +
+            `eof_action=pass[v${index}]`;
+          current = `v${index}`;
+        });
+
+        graph += `;[${current}]null[vout]`;
+        filterGraph = graph;
+      }
+
       const args = [
         '-ss',
         clip.startTime.toFixed(3),
         '-i',
         inputName,
+        ...brollFiles.flatMap((broll) => [
+          '-stream_loop',
+          '-1',
+          '-i',
+          broll.name,
+        ]),
         '-t',
         duration.toFixed(3),
-        '-vf',
-        filters.join(','),
+        ...(filterGraph
+          ? ['-filter_complex', filterGraph, '-map', '[vout]', '-map', '0:a?']
+          : ['-vf', filters.join(',')]),
         ...(audioFilters.length > 0
           ? ['-af', audioFilters.join(',')]
           : []),
@@ -407,6 +496,11 @@ export class KutlassProcessor implements IVideoProcessor {
       ffmpeg.off('progress', handleProgress);
       await ffmpeg.deleteFile(inputName).catch(() => undefined);
       await ffmpeg.deleteFile(subtitleName).catch(() => undefined);
+      await Promise.all(
+        brollFileNames.map((name) =>
+          ffmpeg.deleteFile(name).catch(() => undefined)
+        )
+      );
       await ffmpeg.deleteFile(outputName).catch(() => undefined);
     }
   }
@@ -450,6 +544,7 @@ export class KutlassProcessor implements IVideoProcessor {
     console.log(
       `[KutlassProcessor] Rendering "${clip.title}" (${clip.startTime}s - ${clip.endTime}s) from "${sourceFile.name}" as ${options.targetAspectRatio} ${options.resolution}.`,
       `Brand styling: ${options.brandColor}, ${options.brandFont}, logo ${options.brandLogo ? 'included' : 'none'}.`,
+      clip.broll?.length ? `${clip.broll.length} B-roll overlay(s) queued.` : 'No B-roll overlays for this clip.',
       assContent
         ? 'Animated ASS captions generated for this clip.'
         : 'No transcript captions available for this clip.'

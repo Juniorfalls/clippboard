@@ -18,6 +18,13 @@ export interface TimeRange {
   end: number;
 }
 
+export interface BRollSuggestion {
+  query: string;
+  startTime: number; // Offset from the clip start
+  duration: number;
+  url?: string;
+}
+
 export interface Clip {
   id: string;
   title: string;
@@ -26,6 +33,7 @@ export interface Clip {
   duration: number;
   viralityScore: number; // AI virality rating from 1 to 100
   cutRanges?: TimeRange[]; // Removed spoken-word ranges in source time
+  broll?: BRollSuggestion[];
   status: 'pending' | 'processing' | 'completed' | 'error';
   url?: string;      // The final rendered video blob URL
 }

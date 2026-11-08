@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { z } from "zod";
+import { findPexelsBroll } from "@/lib/pexels";
 import type { Clip, TranscriptSegment } from "@/types/video";
 
 export const runtime = "nodejs";
@@ -10,12 +11,19 @@ export const maxDuration = 60;
 const MAX_PROMPT_LENGTH = 500;
 const MAX_AUDIO_SIZE = 4 * 1024 * 1024;
 
+const BRollSchema = z.object({
+  query: z.string().trim().min(1).max(120),
+  startTime: z.number().finite().min(0),
+  duration: z.number().finite().min(1).max(3),
+});
+
 const MomentSchema = z
   .object({
     title: z.string().trim().min(1).max(120),
     startTime: z.number().finite().min(0),
     endTime: z.number().finite().positive(),
     viralityScore: z.number().int().min(1).max(100),
+    broll: z.array(BRollSchema).max(2),
   })
   .refine((moment) => moment.endTime > moment.startTime, {
     message: "endTime must be greater than startTime",
@@ -42,8 +50,22 @@ const OPENAI_RESPONSE_SCHEMA = {
           startTime: { type: "number" },
           endTime: { type: "number" },
           viralityScore: { type: "integer", minimum: 1, maximum: 100 },
+          broll: {
+            type: "array",
+            maxItems: 2,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                query: { type: "string" },
+                startTime: { type: "number" },
+                duration: { type: "number" },
+              },
+              required: ["query", "startTime", "duration"],
+            },
+          },
         },
-        required: ["title", "startTime", "endTime", "viralityScore"],
+        required: ["title", "startTime", "endTime", "viralityScore", "broll"],
       },
     },
   },
@@ -208,11 +230,11 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought, include a strong hook, and be between 15 and 90 seconds long. For each clip, rate its virality from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. Use only timestamps present in the transcript. Return JSON only.",
+            "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought, include a strong hook, and be between 15 and 90 seconds long. For each clip, rate its virality from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. Return JSON only.",
         },
         {
           role: "user",
-          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, startTime in seconds, endTime in seconds, and a viralityScore from 1 to 100.`,
+          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, startTime in seconds, endTime in seconds, a viralityScore from 1 to 100, and a broll array with up to 2 short B-roll overlay suggestions. Use an empty broll array when no overlay is useful.`,
         },
       ],
     });
@@ -254,17 +276,51 @@ export async function POST(request: Request) {
         const startTime = roundToHundredths(Math.max(0, moment.startTime));
         const endTime = roundToHundredths(Math.max(startTime, moment.endTime));
 
+        const clipDuration = endTime - startTime;
+        const broll = moment.broll
+          .map((suggestion) => {
+            const brollStart = roundToHundredths(
+              Math.min(Math.max(0, suggestion.startTime), Math.max(0, clipDuration - 1))
+            );
+            const brollDuration = roundToHundredths(
+              Math.min(suggestion.duration, 3, clipDuration - brollStart)
+            );
+
+            return {
+              query: suggestion.query.trim(),
+              startTime: brollStart,
+              duration: brollDuration,
+            };
+          })
+          .filter((suggestion) => suggestion.query.length > 0 && suggestion.duration >= 1);
+
         return {
           id: randomUUID(),
           title: moment.title.trim(),
           startTime,
           endTime,
-          duration: roundToHundredths(endTime - startTime),
+          duration: roundToHundredths(clipDuration),
           viralityScore: moment.viralityScore,
+          broll,
           status: "pending" as const,
         };
       })
       .sort((a, b) => a.startTime - b.startTime);
+
+    await Promise.all(
+      clips.map(async (clip) => {
+        if (!clip.broll?.length) return;
+
+        clip.broll = (
+          await Promise.all(
+            clip.broll.map(async (suggestion) => ({
+              ...suggestion,
+              url: (await findPexelsBroll(suggestion.query)) ?? undefined,
+            }))
+          )
+        ).filter((suggestion) => suggestion.url);
+      })
+    );
 
     return NextResponse.json({ clips, transcript: transcriptSegments });
   } catch (error) {
