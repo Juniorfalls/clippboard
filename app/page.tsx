@@ -306,15 +306,25 @@ const PRICING_TIERS = [
       "MCP Server Access",
     ],
     cta: "Contact Sales",
-    href: "mailto:sales@clippboard.com",
+    href: "/login",
     highlighted: false,
   },
 ];
 
-function SocialIcon({ label, children }: { label: string; children: React.ReactNode }) {
+function SocialIcon({
+  href,
+  label,
+  children,
+}: {
+  href: string;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <a
-      href="#"
+      href={href}
+      target="_blank"
+      rel="noreferrer"
       aria-label={label}
       className={cn(
         "flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-white/70 duration-200 hover:border-brand-blue hover:text-brand-blue",
@@ -645,20 +655,20 @@ export default function HomePage() {
           </div>
 
           <div className="col-span-12 flex items-start gap-3 md:col-span-4 md:col-start-9 md:justify-end">
-            <SocialIcon label="YouTube">
+            <SocialIcon href="https://www.youtube.com" label="YouTube">
               <rect x="3" y="6" width="18" height="12" rx="4" />
               <path d="m10 9 5 3-5 3z" fill="currentColor" stroke="none" />
             </SocialIcon>
-            <SocialIcon label="X">
+            <SocialIcon href="https://x.com" label="X">
               <path d="M5 4 19 20" />
               <path d="M19 4 5 20" />
             </SocialIcon>
-            <SocialIcon label="Instagram">
+            <SocialIcon href="https://www.instagram.com" label="Instagram">
               <rect x="4" y="4" width="16" height="16" rx="5" />
               <circle cx="12" cy="12" r="4" />
               <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none" />
             </SocialIcon>
-            <SocialIcon label="LinkedIn">
+            <SocialIcon href="https://www.linkedin.com" label="LinkedIn">
               <path d="M6 9v9" />
               <path d="M6 5.5v.1" />
               <path d="M11 18v-5a3 3 0 0 1 6 0v5" />
