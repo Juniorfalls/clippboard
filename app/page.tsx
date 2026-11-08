@@ -262,7 +262,7 @@ const PRICING_TIERS = [
   },
   {
     name: "Pro",
-    price: "$29",
+    price: "$19",
     cadence: "/ month",
     description: "For creators shipping content every week.",
     features: [
@@ -278,7 +278,7 @@ const PRICING_TIERS = [
   },
   {
     name: "Agency",
-    price: "$99",
+    price: "$49",
     cadence: "/ month",
     description: "For teams producing at scale.",
     features: [
