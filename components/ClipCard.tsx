@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Play, Scissors, Send, Sparkles } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Download, FileDown, MoreHorizontal, Play, Scissors, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { PublishModal, type PublishPayload } from "@/components/PublishModal";
 import { TrimModal } from "@/components/TrimModal";
 import { VideoPreview } from "@/components/VideoPreview";
+import { downloadFCPXML } from "@/lib/fcpxml";
 import { cn } from "@/lib/utils";
 import type { Clip, TranscriptSegment } from "@/types/video";
 
@@ -179,6 +181,44 @@ export function ClipCard({
           <h3 className="line-clamp-2 text-[16px] font-semibold leading-[1.25]">
             {clip.title}
           </h3>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                type="button"
+                aria-label={`More options for ${clip.title}`}
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-soft-black/60 duration-200 hover:bg-warm-white hover:text-soft-black",
+                  focusRing
+                )}
+              >
+                <MoreHorizontal className="h-4 w-4" aria-hidden />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="end"
+                sideOffset={6}
+                className="z-50 min-w-[210px] overflow-hidden rounded-xl border border-border-gray bg-white p-1 shadow-xl"
+              >
+                <DropdownMenu.Item
+                  onSelect={() => {
+                    downloadFCPXML(clip, transcript ?? []);
+                    toast.success("Final Cut Pro project exported", {
+                      description: `${clip.title}.fcpxml`,
+                    });
+                  }}
+                  className={cn(
+                    "flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold text-soft-black outline-none duration-200",
+                    "data-[highlighted]:bg-warm-white",
+                    "focus-visible:ring-2 focus-visible:ring-brand-blue"
+                  )}
+                >
+                  <FileDown className="h-4 w-4 text-brand-blue" aria-hidden />
+                  Export to Final Cut Pro
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
 
         {isProcessing ? (

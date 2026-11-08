@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "sonner";
-import { AudioLines, Captions, RotateCcw, Scissors, Trash2, X } from "lucide-react";
+import { AudioLines, Captions, RotateCcw, Scissors, Trash2, Wand2, X } from "lucide-react";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CustomTextArea } from "@/components/CustomTextArea";
 import { VideoPreview } from "@/components/VideoPreview";
@@ -136,6 +136,7 @@ export function TrimModal({
   const [script, setScript] = useState("");
   const [voiceover, setVoiceover] = useState<Voiceover | null>(null);
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
+  const [removeFiller, setRemoveFiller] = useState(false);
 
   const bounds = boundsRef.current;
   const range = Math.max(bounds.end - bounds.start, MIN_DURATION);
@@ -154,6 +155,9 @@ export function TrimModal({
     setScript(clip.voiceover?.script ?? "");
     setVoiceover(clip.voiceover ?? null);
     setIsGeneratingVoiceover(false);
+    setRemoveFiller(
+      clip.removeFiller ?? Boolean(clip.fillerCuts?.length)
+    );
 
     const removed = new Set<string>();
     clipWords.forEach((word) => {
@@ -164,7 +168,16 @@ export function TrimModal({
       if (isRemoved) removed.add(word.key);
     });
     setRemovedWordKeys(removed);
-  }, [open, clip.startTime, clip.endTime, clip.cutRanges, clipWords, clip.voiceover]);
+  }, [
+    open,
+    clip.startTime,
+    clip.endTime,
+    clip.cutRanges,
+    clipWords,
+    clip.voiceover,
+    clip.fillerCuts,
+    clip.removeFiller,
+  ]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -297,6 +310,7 @@ export function TrimModal({
       endTime: Math.round(end * 10) / 10,
       duration: Math.round((end - start) * 10) / 10,
       cutRanges,
+      removeFiller,
       voiceover: voiceover ?? undefined,
     });
     onOpenChange(false);
@@ -417,6 +431,48 @@ export function TrimModal({
                     End {formatTime(end)}
                     <span className="h-2 w-2 rounded-full bg-brand-blue" aria-hidden />
                   </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 rounded-2 border border-border-gray bg-warm-white p-3">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <Wand2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" aria-hidden />
+                    <div>
+                      <p className="text-[14px] font-semibold text-soft-black">
+                        Remove Filler Words
+                      </p>
+                      <p className="text-[12px] text-soft-black/50">
+                        {clip.fillerCuts?.length
+                          ? `${clip.fillerCuts.length} filler moment${
+                              clip.fillerCuts.length === 1 ? "" : "s"
+                            } detected by AI.`
+                          : "No filler words or bad takes detected."}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={removeFiller}
+                    aria-label="Remove filler words"
+                    disabled={!clip.fillerCuts?.length}
+                    onClick={() => setRemoveFiller((current) => !current)}
+                    className={cn(
+                      "relative h-7 w-12 shrink-0 rounded-full border duration-200",
+                      removeFiller
+                        ? "border-brand-blue bg-brand-blue"
+                        : "border-border-gray bg-soft-black/15",
+                      "disabled:cursor-not-allowed disabled:opacity-50",
+                      focusRing
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-white shadow-sm duration-200",
+                        removeFiller ? "left-[22px]" : "left-[3px]"
+                      )}
+                    />
+                  </button>
                 </div>
 
                 <div

@@ -39,6 +39,8 @@ export interface Clip {
   duration: number;
   viralityScore: number; // AI virality rating from 1 to 100
   cutRanges?: TimeRange[]; // Removed spoken-word ranges in source time
+  fillerCuts?: TimeRange[]; // AI-detected filler words, pauses and bad takes in source time
+  removeFiller?: boolean;
   broll?: BRollSuggestion[];
   voiceover?: Voiceover;
   status: 'pending' | 'processing' | 'completed' | 'error' | 'scheduled';

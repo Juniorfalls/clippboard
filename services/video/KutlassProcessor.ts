@@ -188,8 +188,14 @@ function buildSplitScreenFilter(
   );
 }
 
-function getRelativeCuts(clip: Clip): TimeRange[] {
-  const ranges = (clip.cutRanges ?? [])
+function getRelativeCuts(
+  clip: Clip,
+  includeFiller = clip.removeFiller ?? false
+): TimeRange[] {
+  const ranges = [
+    ...(clip.cutRanges ?? []),
+    ...(includeFiller ? clip.fillerCuts ?? [] : []),
+  ]
     .map((range) => ({
       start: Math.max(0, range.start - clip.startTime),
       end: Math.min(clip.endTime, range.end) - clip.startTime,
@@ -288,6 +294,7 @@ function buildFaceCropFilter(
 
 function buildAssSubtitles(clip: Clip, options: ProcessingOptions) {
   const cuts: TimeRange[] = getRelativeCuts(clip);
+  const fillerCuts = clip.removeFiller ? clip.fillerCuts ?? [] : [];
 
   const segments: TranscriptSegment[] = (options.transcript ?? [])
     .filter(
@@ -302,7 +309,7 @@ function buildAssSubtitles(clip: Clip, options: ProcessingOptions) {
             (word) =>
               word.end > clip.startTime &&
               word.start < clip.endTime &&
-              !(clip.cutRanges ?? []).some(
+              ![...(clip.cutRanges ?? []), ...fillerCuts].some(
                 (range) => word.end > range.start && word.start < range.end
               )
           )
@@ -700,6 +707,9 @@ export class KutlassProcessor implements IVideoProcessor {
       `Brand styling: ${options.brandColor}, ${options.brandFont}, logo ${options.brandLogo ? 'included' : 'none'}.`,
       clip.broll?.length ? `${clip.broll.length} B-roll overlay(s) queued.` : 'No B-roll overlays for this clip.',
       clip.voiceover ? `Voiceover queued (${clip.voiceover.voice}).` : 'No voiceover for this clip.',
+      clip.removeFiller && clip.fillerCuts?.length
+        ? `${clip.fillerCuts.length} AI filler cut(s) enabled.`
+        : 'AI filler cuts disabled or none detected.',
       assContent
         ? 'Animated ASS captions generated for this clip.'
         : 'No transcript captions available for this clip.'

@@ -17,12 +17,23 @@ const BRollSchema = z.object({
   duration: z.number().finite().min(1).max(3),
 });
 
+const FillerCutSchema = z
+  .object({
+    start: z.number().finite().min(0),
+    end: z.number().finite().positive(),
+  })
+  .refine((range) => range.end > range.start, {
+    message: "Filler cut end must be greater than start",
+    path: ["end"],
+  });
+
 const MomentSchema = z
   .object({
     title: z.string().trim().min(1).max(120),
     startTime: z.number().finite().min(0),
     endTime: z.number().finite().positive(),
     viralityScore: z.number().int().min(1).max(100),
+    fillerCuts: z.array(FillerCutSchema).max(40),
     broll: z.array(BRollSchema).max(2),
   })
   .refine((moment) => moment.endTime > moment.startTime, {
@@ -50,6 +61,19 @@ const OPENAI_RESPONSE_SCHEMA = {
           startTime: { type: "number" },
           endTime: { type: "number" },
           viralityScore: { type: "integer", minimum: 1, maximum: 100 },
+          fillerCuts: {
+            type: "array",
+            maxItems: 40,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                start: { type: "number" },
+                end: { type: "number" },
+              },
+              required: ["start", "end"],
+            },
+          },
           broll: {
             type: "array",
             maxItems: 2,
@@ -65,7 +89,14 @@ const OPENAI_RESPONSE_SCHEMA = {
             },
           },
         },
-        required: ["title", "startTime", "endTime", "viralityScore", "broll"],
+        required: [
+          "title",
+          "startTime",
+          "endTime",
+          "viralityScore",
+          "fillerCuts",
+          "broll",
+        ],
       },
     },
   },
@@ -230,11 +261,11 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought, include a strong hook, and be between 15 and 90 seconds long. For each clip, rate its virality from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. Return JSON only.",
+            "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought, include a strong hook, and be between 15 and 90 seconds long. For each clip, rate its virality from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. Return JSON only.",
         },
         {
           role: "user",
-          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, startTime in seconds, endTime in seconds, a viralityScore from 1 to 100, and a broll array with up to 2 short B-roll overlay suggestions. Use an empty broll array when no overlay is useful.`,
+          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, startTime in seconds, endTime in seconds, a viralityScore from 1 to 100, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
         },
       ],
     });
@@ -277,6 +308,22 @@ export async function POST(request: Request) {
         const endTime = roundToHundredths(Math.max(startTime, moment.endTime));
 
         const clipDuration = endTime - startTime;
+        const fillerCuts = moment.fillerCuts
+          .map((range) => ({
+            start: roundToHundredths(
+              Math.max(startTime, Math.min(endTime, range.start))
+            ),
+            end: roundToHundredths(
+              Math.max(startTime, Math.min(endTime, range.end))
+            ),
+          }))
+          .filter(
+            (range) =>
+              range.end > range.start &&
+              range.end - range.start >= 0.08 &&
+              range.end - range.start <= clipDuration * 0.4
+          )
+          .sort((a, b) => a.start - b.start);
         const broll = moment.broll
           .map((suggestion) => {
             const brollStart = roundToHundredths(
@@ -301,6 +348,8 @@ export async function POST(request: Request) {
           endTime,
           duration: roundToHundredths(clipDuration),
           viralityScore: moment.viralityScore,
+          fillerCuts,
+          removeFiller: true,
           broll,
           status: "pending" as const,
         };
