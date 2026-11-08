@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clapperboard } from "lucide-react";
+import { Clapperboard, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CustomDropzone } from "@/components/CustomDropzone";
 import { CustomTextArea } from "@/components/CustomTextArea";
+import { useTeam } from "@/components/TeamProvider";
 import { ClipSkeleton } from "@/components/ClipSkeleton";
 import { ClipGallery } from "@/components/ClipGallery";
 import type { PublishPayload } from "@/components/PublishModal";
@@ -13,6 +14,7 @@ import { getAIAnalyzer } from "@/services/ai";
 import { getVideoProcessor } from "@/services/video";
 import { extractAudio } from "@/lib/extract-audio";
 import { loadBrandKit } from "@/lib/brand-kit";
+import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Clip, ProcessingOptions, TranscriptSegment } from "@/types/video";
 
@@ -57,7 +59,16 @@ const PROMPT_PRESETS = [
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
+type TeamProject = {
+  id: string;
+  title: string;
+  source_name: string | null;
+  clip_count: number;
+  created_at: string;
+};
+
 export function WorkspaceDashboard({ userId }: { userId: string }) {
+  const { activeTeamId, activeTeam } = useTeam();
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("Find the 10 best moments from this video.");
   const [activePreset, setActivePreset] = useState<string | null>(null);
@@ -71,10 +82,46 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
   const [clips, setClips] = useState<Clip[]>([]);
   const [progressById, setProgressById] = useState<Record<string, number>>({});
   const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
+  const [projects, setProjects] = useState<TeamProject[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
 
   useEffect(() => {
     setLayout(loadBrandKit(userId).layout);
   }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProjects() {
+      if (!activeTeamId) {
+        setProjects([]);
+        return;
+      }
+
+      setLoadingProjects(true);
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("projects")
+          .select("id, title, source_name, clip_count, created_at")
+          .eq("team_id", activeTeamId)
+          .order("created_at", { ascending: false })
+          .limit(6);
+
+        if (error) throw error;
+        if (!cancelled) setProjects((data ?? []) as TeamProject[]);
+      } catch {
+        if (!cancelled) setProjects([]);
+      } finally {
+        if (!cancelled) setLoadingProjects(false);
+      }
+    }
+
+    void loadProjects();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTeamId]);
 
   function updateClip(id: string, patch: Partial<Clip>) {
     setClips((previous) =>
@@ -124,6 +171,33 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
       setClips(analysis.clips);
       setTranscript(analysis.transcript ?? []);
       toast.dismiss(statusToastId);
+
+      if (activeTeamId) {
+        try {
+          const supabase = createClient();
+          const projectTitle = uploadedFile.name.replace(/\.[^.]+$/, "");
+          const { data: project, error: projectError } = await supabase
+            .from("projects")
+            .insert({
+              team_id: activeTeamId,
+              user_id: userId,
+              title: projectTitle,
+              source_name: uploadedFile.name,
+              clip_count: analysis.clips.length,
+            })
+            .select("id, title, source_name, clip_count, created_at")
+            .single();
+
+          if (!projectError && project) {
+            setProjects((previous) => [
+              project as TeamProject,
+              ...previous,
+            ].slice(0, 6));
+          }
+        } catch {
+          // Project persistence should never block clip generation.
+        }
+      }
 
       const processor = getVideoProcessor();
       const brandKit = loadBrandKit(userId);
@@ -280,6 +354,55 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
           them for TikTok and upscales to 4K.
         </p>
       </header>
+
+      <section aria-label="Team projects" className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-[24px] font-bold leading-[1.25]">
+              Team projects
+            </h2>
+            <p className="text-[14px] text-soft-black/60">
+              Recent projects in {activeTeam?.name ?? "your workspace"}.
+            </p>
+          </div>
+          {loadingProjects && (
+            <span className="text-[12px] font-semibold text-soft-black/50">
+              Loading...
+            </span>
+          )}
+        </div>
+
+        {projects.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project) => (
+              <article
+                key={project.id}
+                className="flex items-start gap-3 rounded-2xl border border-border-gray bg-white p-4"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-blue-light text-brand-blue">
+                  <FolderOpen className="h-5 w-5" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="truncate text-[16px] font-semibold text-soft-black">
+                    {project.title}
+                  </h3>
+                  <p className="mt-0.5 truncate text-[12px] text-soft-black/50">
+                    {project.clip_count} clips ·{" "}
+                    {new Date(project.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          !loadingProjects && (
+            <div className="rounded-2xl border border-dashed border-border-gray bg-white px-5 py-6 text-[14px] text-soft-black/60">
+              No projects in this workspace yet. Generate clips and the project
+              will appear here for your team.
+            </div>
+          )
+        )}
+      </section>
 
       <section aria-label="Create clips" className="flex flex-col gap-6">
         <CustomDropzone

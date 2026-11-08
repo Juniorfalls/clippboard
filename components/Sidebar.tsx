@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FolderOpen, Settings, Sparkles, type LucideIcon } from "lucide-react";
+import { FolderOpen, Settings, Sparkles, UsersRound, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/Logo";
+import { TeamSwitcher } from "@/components/TeamSwitcher";
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard", label: "Workspace", icon: Sparkles },
   { href: "/projects", label: "Projects", icon: FolderOpen },
+  { href: "/dashboard/team", label: "Team", icon: UsersRound },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
@@ -33,6 +35,10 @@ export function Sidebar() {
           Clippboard
         </span>
       </Link>
+
+      <div className="hidden lg:block">
+        <TeamSwitcher />
+      </div>
 
       <nav
         aria-label="Main"
