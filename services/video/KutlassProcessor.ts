@@ -1,4 +1,5 @@
 import { getFfmpeg } from '@/lib/extract-audio';
+import type { FaceTrack } from '@/lib/face-tracker';
 import {
   Clip,
   IVideoProcessor,
@@ -76,6 +77,57 @@ function buildKaraokeText(duration: number, text: string) {
       return `{\\kf${wordCentis}}${escapeAssText(word)}`;
     })
     .join(' ');
+}
+
+function buildFaceCropFilter(
+  clip: Clip,
+  options: ProcessingOptions,
+  track: FaceTrack
+) {
+  if (options.targetAspectRatio !== '9:16') return null;
+
+  const { width, height, points } = track;
+  if (width <= 0 || height <= 0 || points.length === 0) return null;
+
+  const cropWidth = Math.min(width, Math.round(height * (9 / 16)));
+  if (cropWidth >= width - 1) return null;
+
+  const maxX = width - cropWidth;
+  const xValues = points.map((point) => {
+    const centerX = point.centerX * width;
+    return Math.round(Math.min(maxX, Math.max(0, centerX - cropWidth / 2)));
+  });
+
+  const lastX = xValues[xValues.length - 1];
+  let expression = String(lastX);
+
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    const start = points[index].time;
+    const end = points[index + 1].time;
+    if (end <= start) continue;
+
+    const fromX = xValues[index];
+    const toX = xValues[index + 1];
+    const slope = (toX - fromX) / (end - start);
+    const direction = slope >= 0 ? '+' : '-';
+    const segment = `${fromX}${direction}${Math.abs(slope).toFixed(
+      4
+    )}*(t-${start.toFixed(2)})`;
+
+    expression = `if(lt(t\\,${end.toFixed(2)})\\,${segment}\\,${expression})`;
+  }
+
+  if (points[0].time > 0.05) {
+    expression = `if(lt(t\\,${points[0].time.toFixed(
+      2
+    )})\\,${xValues[0]}\\,${expression})`;
+  }
+
+  console.log(
+    `[KutlassProcessor] Face-tracked 9:16 crop for "${clip.title}" using ${points.length} samples.`
+  );
+
+  return `crop=${cropWidth}:${height}:${expression}:0`;
 }
 
 function buildAssSubtitles(clip: Clip, options: ProcessingOptions) {
@@ -184,7 +236,8 @@ export class KutlassProcessor implements IVideoProcessor {
     sourceFile: File,
     clip: Clip,
     options: ProcessingOptions,
-    assContent: string,
+    assContent: string | null,
+    cropFilter: string | null,
     onProgress: (progress: number) => void
   ): Promise<string> {
     const ffmpeg = await getFfmpeg();
@@ -205,7 +258,13 @@ export class KutlassProcessor implements IVideoProcessor {
 
     try {
       await ffmpeg.writeFile(inputName, await fetchFile(sourceFile));
-      await ffmpeg.writeFile(subtitleName, new TextEncoder().encode(assContent));
+
+      const filters: string[] = [];
+      if (cropFilter) filters.push(cropFilter);
+      if (assContent) {
+        await ffmpeg.writeFile(subtitleName, new TextEncoder().encode(assContent));
+        filters.push(`ass=${subtitleName}`);
+      }
 
       const exitCode = await ffmpeg.exec([
         '-ss',
@@ -215,7 +274,7 @@ export class KutlassProcessor implements IVideoProcessor {
         '-t',
         duration.toFixed(3),
         '-vf',
-        `ass=${subtitleName}`,
+        filters.join(','),
         '-c:v',
         'libx264',
         '-preset',
@@ -268,6 +327,26 @@ export class KutlassProcessor implements IVideoProcessor {
     );
 
     const assContent = buildAssSubtitles(clip, options);
+    let cropFilter: string | null = null;
+
+    if (options.targetAspectRatio === '9:16') {
+      try {
+        const { trackFaces } = await import('@/lib/face-tracker');
+        const track = await trackFaces(
+          sourceFile,
+          clip.startTime,
+          clip.endTime
+        );
+        if (track) {
+          cropFilter = buildFaceCropFilter(clip, options, track);
+        }
+      } catch (error) {
+        console.warn(
+          '[KutlassProcessor] Face tracking failed; using the center crop.',
+          error
+        );
+      }
+    }
 
     console.log(
       `[KutlassProcessor] Rendering "${clip.title}" (${clip.startTime}s - ${clip.endTime}s) from "${sourceFile.name}" as ${options.targetAspectRatio} ${options.resolution}.`,
@@ -277,18 +356,19 @@ export class KutlassProcessor implements IVideoProcessor {
         : 'No transcript captions available for this clip.'
     );
 
-    if (assContent) {
+    if (assContent || cropFilter) {
       try {
         return await this.renderWithCaptions(
           sourceFile,
           clip,
           options,
           assContent,
+          cropFilter,
           onProgress
         );
       } catch (error) {
         console.error(
-          '[KutlassProcessor] Caption burn-in failed; falling back to sample render.',
+          '[KutlassProcessor] Caption or face-crop render failed; falling back to sample render.',
           error
         );
       }
