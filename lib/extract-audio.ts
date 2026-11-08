@@ -25,7 +25,7 @@ function createFfmpeg() {
   });
 }
 
-function getFfmpeg() {
+export function getFfmpeg() {
   if (!ffmpegPromise) {
     ffmpegPromise = createFfmpeg().catch((error) => {
       ffmpegPromise = null;

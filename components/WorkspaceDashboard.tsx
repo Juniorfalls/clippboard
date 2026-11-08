@@ -13,7 +13,7 @@ import { getVideoProcessor } from "@/services/video";
 import { extractAudio } from "@/lib/extract-audio";
 import { loadBrandKit } from "@/lib/brand-kit";
 import { cn } from "@/lib/utils";
-import type { Clip, ProcessingOptions } from "@/types/video";
+import type { Clip, ProcessingOptions, TranscriptSegment } from "@/types/video";
 
 const FORMATS = [
   { value: "9:16", label: "TikTok 9:16" },
@@ -67,6 +67,7 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [clips, setClips] = useState<Clip[]>([]);
   const [progressById, setProgressById] = useState<Record<string, number>>({});
+  const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
 
   function updateClip(id: string, patch: Partial<Clip>) {
     setClips((previous) =>
@@ -114,6 +115,7 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
       }
 
       setClips(analysis.clips);
+      setTranscript(analysis.transcript ?? []);
       toast.dismiss(statusToastId);
 
       const processor = getVideoProcessor();
@@ -126,6 +128,7 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
         brandColor: brandKit.color,
         brandFont: brandKit.font,
         brandLogo: brandKit.logo ?? undefined,
+        transcript: analysis.transcript ?? [],
       };
 
       let failedCount = 0;
@@ -205,6 +208,7 @@ export function WorkspaceDashboard({ userId }: { userId: string }) {
         brandColor: brandKit.color,
         brandFont: brandKit.font,
         brandLogo: brandKit.logo ?? undefined,
+        transcript,
       };
 
       const url = await processor.processClip(

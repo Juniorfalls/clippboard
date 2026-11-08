@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { z } from "zod";
-import type { Clip } from "@/types/video";
+import type { Clip, TranscriptSegment } from "@/types/video";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -142,6 +142,7 @@ export async function POST(request: Request) {
   const analysisModel = process.env.OPENAI_MODEL ?? "gpt-4o";
 
   let transcript: string;
+  let transcriptSegments: TranscriptSegment[] = [];
 
   try {
     const transcription = await openai.audio.transcriptions.create({
@@ -150,6 +151,14 @@ export async function POST(request: Request) {
       response_format: "verbose_json",
       timestamp_granularities: ["segment"],
     });
+
+    transcriptSegments = (transcription.segments ?? [])
+      .map((segment) => ({
+        start: roundToHundredths(Math.max(0, segment.start)),
+        end: roundToHundredths(Math.max(0, segment.end)),
+        text: segment.text.trim(),
+      }))
+      .filter((segment) => segment.text.length > 0 && segment.end > segment.start);
 
     transcript = buildTranscript(transcription.segments, transcription.text);
   } catch (error) {
@@ -241,7 +250,7 @@ export async function POST(request: Request) {
       })
       .sort((a, b) => a.startTime - b.startTime);
 
-    return NextResponse.json({ clips });
+    return NextResponse.json({ clips, transcript: transcriptSegments });
   } catch (error) {
     console.error("[analyze] Moment detection failed", error);
     return errorResponse(

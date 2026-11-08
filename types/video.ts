@@ -1,5 +1,11 @@
 // types/video.ts
 
+export interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
 export interface Clip {
   id: string;
   title: string;
@@ -19,10 +25,12 @@ export interface ProcessingOptions {
   brandColor: string;
   brandFont: string;
   brandLogo?: string;
+  transcript?: TranscriptSegment[];
 }
 
 export interface AIAnalysisResult {
   clips: Clip[];
+  transcript?: TranscriptSegment[];
 }
 
 // The contract for finding moments
