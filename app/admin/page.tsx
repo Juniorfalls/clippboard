@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { CreditCard, Film, ShieldCheck, Users } from "lucide-react";
+import { Activity, Film, ShieldCheck, Users } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -39,8 +39,8 @@ export default async function AdminPage() {
     redirect("/dashboard?error=unauthorized");
   }
 
-  const [{ count: totalUsers }, { data: recentProfiles }] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
+  const [{ data: metricsRows }, { data: recentProfiles }] = await Promise.all([
+    supabase.rpc("admin_metrics"),
     supabase
       .from("profiles")
       .select("id, email, is_admin, created_at")
@@ -48,26 +48,34 @@ export default async function AdminPage() {
       .limit(10),
   ]);
 
+  const stats = metricsRows?.[0] as
+    | {
+        total_users: number | string;
+        total_clips: number | string;
+        clips_this_week: number | string;
+      }
+    | undefined;
+
   const recentUsers = (recentProfiles ?? []) as ProfileRow[];
 
   const metrics = [
     {
       label: "Total Users",
-      value: (totalUsers ?? 0).toLocaleString(),
-      detail: "Accounts in Supabase",
+      value: Number(stats?.total_users ?? 0).toLocaleString(),
+      detail: "Accounts in auth.users",
       icon: Users,
     },
     {
       label: "Total Clips Generated",
-      value: "24,860",
-      detail: "Placeholder until clip events are tracked",
+      value: Number(stats?.total_clips ?? 0).toLocaleString(),
+      detail: "Persisted clip records",
       icon: Film,
     },
     {
-      label: "Active Subscriptions",
-      value: "1,248",
-      detail: "Placeholder until billing is connected",
-      icon: CreditCard,
+      label: "Clips This Week",
+      value: Number(stats?.clips_this_week ?? 0).toLocaleString(),
+      detail: "Generated in the last 7 days",
+      icon: Activity,
     },
   ];
 

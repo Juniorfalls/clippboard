@@ -153,6 +153,25 @@ export function WorkspaceDashboard({
     );
   }
 
+  async function persistClip(clip: Clip) {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("clips").insert({
+        user_id: userId,
+        title: clip.title,
+        duration: clip.duration,
+        virality_score: clip.viralityScore,
+        video_url: null,
+      });
+
+      if (error) {
+        console.warn("Could not persist clip metadata", error.message);
+      }
+    } catch (error) {
+      console.warn("Could not persist clip metadata", error);
+    }
+  }
+
   async function handleGenerate() {
     if (!uploadedFile) {
       toast.error("Add a video first", {
@@ -264,6 +283,7 @@ export function WorkspaceDashboard({
 
           setProgressById((previous) => ({ ...previous, [clip.id]: 100 }));
           updateClip(clip.id, { status: "completed", url });
+          void persistClip(clip);
         } catch (error) {
           failedCount += 1;
           updateClip(clip.id, { status: "error" });
@@ -350,6 +370,10 @@ export function WorkspaceDashboard({
 
       setProgressById((previous) => ({ ...previous, [updatedClip.id]: 100 }));
       updateClip(updatedClip.id, { status: "completed", url });
+      void persistClip({
+        ...updatedClip,
+        duration: updatedClip.endTime - updatedClip.startTime,
+      });
       toast.success("Trim saved", { description: updatedClip.title });
     } catch (error) {
       updateClip(updatedClip.id, { status: "error" });
