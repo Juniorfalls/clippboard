@@ -37,7 +37,7 @@ export interface Clip {
   startTime: number; // in seconds
   endTime: number;   // in seconds
   duration: number;
-  viralityScore: number; // AI engagement rating from 1 to 100
+  engagementScore: number; // AI engagement rating from 1 to 100
   cutRanges?: TimeRange[]; // Removed spoken-word ranges in source time
   fillerCuts?: TimeRange[]; // AI-detected filler words, pauses and bad takes in source time
   removeFiller?: boolean;

@@ -326,7 +326,7 @@ export function BrandKitForm({ userId }: { userId: string }) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={brandKit.logo}
-                    alt=""
+                    alt="Brand logo in clip preview"
                     className="h-full w-full object-contain"
                   />
                 </span>

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -12,6 +13,29 @@ import {
 import { CheckoutButton } from "@/components/CheckoutButton";
 import { Logo, LogoMark } from "@/components/Logo";
 import { cn } from "@/lib/utils";
+
+export const metadata: Metadata = {
+  title: { absolute: "Clippboard | AI Video Clipping" },
+  description:
+    "Clippboard turns long-form videos into engaging vertical clips with AI moment detection, transcription, captions, and secure browser-based rendering.",
+  openGraph: {
+    title: "Clippboard | AI Video Clipping",
+    description:
+      "Turn long-form videos into engaging vertical clips with AI moment detection, transcription, captions, and secure browser-based rendering.",
+    url: "/",
+    siteName: "Clippboard",
+    type: "website",
+    images: [
+      {
+        // Replace /public/og-image.png with the final social preview image.
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Clippboard AI video clipping workspace",
+      },
+    ],
+  },
+};
 
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:ring-offset-2 focus-visible:ring-offset-warm-white";
@@ -502,7 +526,7 @@ export default function HomePage() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={person.avatar}
-                        alt=""
+                        alt={`${person.name}, ${person.title}`}
                         className="h-[150px] w-[150px] rounded-full border border-white/10 object-cover sm:h-[187px] sm:w-[187px]"
                         loading="lazy"
                       />

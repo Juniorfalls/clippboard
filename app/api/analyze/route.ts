@@ -32,7 +32,7 @@ const MomentSchema = z
     title: z.string().trim().min(1).max(120),
     startTime: z.number().finite().min(0),
     endTime: z.number().finite().positive(),
-    viralityScore: z.number().int().min(1).max(100),
+    engagementScore: z.number().int().min(1).max(100),
     fillerCuts: z.array(FillerCutSchema).max(40),
     broll: z.array(BRollSchema).max(2),
   })
@@ -60,7 +60,7 @@ const OPENAI_RESPONSE_SCHEMA = {
           title: { type: "string" },
           startTime: { type: "number" },
           endTime: { type: "number" },
-          viralityScore: { type: "integer", minimum: 1, maximum: 100 },
+          engagementScore: { type: "integer", minimum: 1, maximum: 100 },
           fillerCuts: {
             type: "array",
             maxItems: 40,
@@ -93,7 +93,7 @@ const OPENAI_RESPONSE_SCHEMA = {
           "title",
           "startTime",
           "endTime",
-          "viralityScore",
+          "engagementScore",
           "fillerCuts",
           "broll",
         ],
@@ -265,7 +265,7 @@ export async function POST(request: Request) {
         },
         {
           role: "user",
-          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, startTime in seconds, endTime in seconds, a viralityScore from 1 to 100, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
+          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, startTime in seconds, endTime in seconds, a engagementScore from 1 to 100, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
         },
       ],
     });
@@ -347,7 +347,7 @@ export async function POST(request: Request) {
           startTime,
           endTime,
           duration: roundToHundredths(clipDuration),
-          viralityScore: moment.viralityScore,
+          engagementScore: moment.engagementScore,
           fillerCuts,
           removeFiller: true,
           broll,

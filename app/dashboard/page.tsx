@@ -1,7 +1,29 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { WorkspaceDashboard } from "@/components/WorkspaceDashboard";
 import { normalizePlan } from "@/lib/plans";
+
+export const metadata: Metadata = {
+  title: "Workspace",
+  description:
+    "Generate, edit, caption, and export engaging short-form clips from your long-form videos.",
+  robots: { index: false, follow: false },
+  openGraph: {
+    title: "Workspace | Clippboard",
+    description:
+      "Generate, edit, caption, and export engaging short-form clips from your long-form videos.",
+    images: [
+      {
+        // Replace /public/og-image.png with the final social preview image.
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Clippboard workspace",
+      },
+    ],
+  },
+};
 
 export default async function WorkspacePage({
   searchParams,

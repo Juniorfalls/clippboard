@@ -5,7 +5,7 @@ create table if not exists public.clips (
   user_id uuid not null references auth.users(id) on delete cascade,
   title text not null default 'Untitled clip',
   duration double precision not null default 0,
-  virality_score integer not null default 0,
+  engagement_score integer not null default 0,
   created_at timestamptz not null default now(),
   video_url text
 );

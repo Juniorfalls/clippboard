@@ -1,15 +1,49 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { Analytics } from "@vercel/analytics/next";
 import { AppShell } from "@/components/AppShell";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://clippboard.com";
+
 export const metadata: Metadata = {
-  title: { default: "Clippboard", template: "%s | Clippboard" },
-  description: "Clippboard turns raw videos into vertical social clips.",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "Clippboard | AI Video Clipping",
+    template: "%s | Clippboard",
+  },
+  description:
+    "Turn long-form videos into engaging, vertical short-form clips with secure browser-based AI processing.",
+  applicationName: "Clippboard",
+  icons: { icon: "/icon.svg" },
+  openGraph: {
+    title: "Clippboard | AI Video Clipping",
+    description:
+      "Turn long-form videos into engaging, vertical short-form clips with secure browser-based AI processing.",
+    url: siteUrl,
+    siteName: "Clippboard",
+    type: "website",
+    images: [
+      {
+        // Replace /public/og-image.png with the final social preview image.
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Clippboard AI video clipping workspace",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Clippboard | AI Video Clipping",
+    description:
+      "Turn long-form videos into engaging, vertical short-form clips with secure browser-based AI processing.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -32,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             },
           }}
         />
+        <Analytics />
       </body>
     </html>
   );

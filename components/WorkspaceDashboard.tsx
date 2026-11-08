@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Clapperboard, FolderOpen, Lock } from "lucide-react";
+import { Clapperboard, FolderOpen, Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CustomDropzone } from "@/components/CustomDropzone";
@@ -185,7 +185,7 @@ export function WorkspaceDashboard({
         user_id: userId,
         title: clip.title,
         duration: clip.duration,
-        virality_score: clip.viralityScore,
+        engagement_score: clip.engagementScore,
         video_url: null,
       });
 
@@ -635,11 +635,16 @@ export function WorkspaceDashboard({
                 "disabled:cursor-not-allowed disabled:bg-brand-blue-light disabled:text-soft-black/60"
               )}
             >
-              {isProcessing
-                ? "Generating clips"
-                : starterLimitReached
-                  ? "Starter limit reached"
-                  : "Generate 10 Clips"}
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  Generating clips
+                </>
+              ) : starterLimitReached ? (
+                "Starter limit reached"
+              ) : (
+                "Generate 10 Clips"
+              )}
             </button>
           </div>
         </div>

@@ -7,13 +7,14 @@ import { TeamProvider } from "@/components/TeamProvider";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  const isPublicPage =
-    pathname === "/" ||
-    pathname === "/privacy" ||
-    pathname === "/terms" ||
-    pathname.startsWith("/login");
+  const isAppPage =
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname.startsWith("/admin") ||
+    pathname === "/help" ||
+    pathname === "/support";
 
-  if (isPublicPage) {
+  if (!isAppPage) {
     return <>{children}</>;
   }
 

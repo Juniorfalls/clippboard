@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Mail, MessageSquareText, Send, UserRound } from "lucide-react";
+import { Loader2, Mail, MessageSquareText, Send, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { CustomTextArea } from "@/components/CustomTextArea";
 import { cn } from "@/lib/utils";
@@ -143,8 +143,17 @@ export default function SupportPage() {
             focusRing
           )}
         >
-          <Send className="h-4 w-4" aria-hidden />
-          {isSubmitting ? "Sending message..." : "Send message"}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              Sending message...
+            </>
+          ) : (
+            <>
+              <Send className="h-4 w-4" aria-hidden />
+              Send message
+            </>
+          )}
         </button>
       </form>
     </div>

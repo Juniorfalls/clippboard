@@ -14,7 +14,7 @@ export class MockAIAnalyzer implements IAIAnalyzer {
         startTime,
         endTime,
         duration: endTime - startTime,
-        viralityScore: 70 + ((index * 7) % 31),
+        engagementScore: 70 + ((index * 7) % 31),
         status: 'pending',
       };
     });
