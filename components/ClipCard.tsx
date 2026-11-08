@@ -235,7 +235,7 @@ export function ClipCard({
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-blue-light bg-gradient-to-r from-brand-blue-light/80 to-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-soft-black shadow-[0_0_18px_rgba(59,130,246,0.35)]">
             <Sparkles className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
-            {clip.viralityScore} Viral Score
+            {clip.viralityScore} Engagement Score
           </span>
           <span className="shrink-0 rounded-lg bg-warm-white px-2 py-1 text-[12px] font-semibold text-soft-black/70">
             {formatDuration(clip.duration)}

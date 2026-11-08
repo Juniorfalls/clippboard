@@ -148,8 +148,8 @@ export default function LoginPage() {
                   aria-hidden
                 />
                 <p>
-                  This workspace uses client-side rendering. Access is limited
-                  to authorised creators.
+                  Your video is processed securely in your browser. Access is
+                  limited to authorized team members.
                 </p>
               </div>
 

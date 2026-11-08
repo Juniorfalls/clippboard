@@ -11,15 +11,15 @@ export const maxDuration = 60;
 const MAX_SESSIONS = 100;
 const transports = new Map<string, SSEServerTransport>();
 
-const ViralClipSchema = z.object({
+const EngagingClipSchema = z.object({
   title: z.string().trim().min(1).max(120),
   startTime: z.number().finite().min(0),
   endTime: z.number().finite().positive(),
   reason: z.string().trim().max(240).optional(),
 });
 
-const ViralClipsResponseSchema = z.object({
-  clips: z.array(ViralClipSchema).min(1).max(10),
+const EngagingClipsResponseSchema = z.object({
+  clips: z.array(EngagingClipSchema).min(1).max(10),
 });
 
 function getOpenAI() {
@@ -60,10 +60,10 @@ function createMcpServer() {
   );
 
   server.registerTool(
-    "get_viral_clips",
+    "get_engaging_clips",
     {
       description:
-        "Find the most viral moments in a timestamped video transcript. Returns clip titles, source start/end timestamps, and reasons.",
+        "Find the strongest, most engaging moments in a timestamped video transcript. Returns clip titles, source start/end timestamps, and reasons.",
       inputSchema: {
         transcript: z
           .string()
@@ -98,7 +98,7 @@ function createMcpServer() {
               },
               {
                 role: "user",
-                content: `Return ${clipCount} viral clips. Transcript with timestamps in seconds:\n\n${transcript}`,
+                content: `Return ${clipCount} engaging clips. Transcript with timestamps in seconds:\n\n${transcript}`,
               },
             ],
           },
@@ -110,7 +110,7 @@ function createMcpServer() {
           throw new Error("The AI returned no clips. Please try again.");
         }
 
-        const validation = ViralClipsResponseSchema.safeParse(
+        const validation = EngagingClipsResponseSchema.safeParse(
           parseJsonContent(content)
         );
         if (!validation.success) {

@@ -33,10 +33,10 @@ const RESOLUTIONS = [
 
 const PROMPT_PRESETS = [
   {
-    id: "viral-hook",
-    label: "Viral Hook",
+    id: "high-performing-hook",
+    label: "High-Performing Hook",
     prompt:
-      "Find the most engaging viral hook in this video and turn it into a punchy 9:16 TikTok clip with a strong opening line.",
+      "Find the most engaging hook in this video and turn it into a punchy 9:16 TikTok clip with a strong opening line.",
   },
   {
     id: "educational",

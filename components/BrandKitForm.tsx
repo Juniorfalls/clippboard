@@ -341,7 +341,7 @@ export function BrandKitForm({ userId }: { userId: string }) {
                 className="rounded-full px-3 py-1 text-[12px] font-bold text-soft-black"
                 style={{ backgroundColor: isValidHexColor(brandKit.color) ? brandKit.color : "#3B82F6" }}
               >
-                Viral Score 95
+                Engagement Score 95
               </span>
               <p
                 className="text-[22px] font-bold leading-[1.15] text-white"

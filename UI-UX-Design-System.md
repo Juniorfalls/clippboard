@@ -87,7 +87,7 @@ To achieve the premium UI shown in the references, you are **strictly prohibited
    - Right: "Sign In" (text link), "Start Free Trial" (Primary Button `bg-blue-500`).
 2. **Hero Section:**
    - Small Kicker: `text-[18px] font-bold` ("The video platform made for creators:").
-   - Massive H1: `text-[80px] leading-[0.95]` ("Turn long videos into viral clips").
+   - Massive H1: `text-[80px] leading-[0.95]` ("Turn long videos into engaging clips").
    - CTA: Large button `px-6 py-4 text-[18px] rounded-3` ("Start Clipping").
    - **Hero Image:** Wrapped in a div with `bg-warm-white`, `rounded-3`, `border-4 border-blue-200` (showing a mockup of the dashboard).
 3. **Dark Features Section (`bg-soft-black text-warm-white`):**
