@@ -55,7 +55,8 @@ export class KutlassProcessor implements IVideoProcessor {
     );
 
     console.log(
-      `[KutlassProcessor] Rendering "${clip.title}" (${clip.startTime}s - ${clip.endTime}s) from "${sourceFile.name}" as ${options.targetAspectRatio} ${options.resolution}.`
+      `[KutlassProcessor] Rendering "${clip.title}" (${clip.startTime}s - ${clip.endTime}s) from "${sourceFile.name}" as ${options.targetAspectRatio} ${options.resolution}.`,
+      `Brand styling: ${options.brandColor}, ${options.brandFont}, logo ${options.brandLogo ? "included" : "none"}.`
     );
 
     return new Promise((resolve) => {

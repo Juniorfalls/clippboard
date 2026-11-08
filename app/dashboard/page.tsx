@@ -12,5 +12,5 @@ export default async function WorkspacePage() {
     redirect("/login");
   }
 
-  return <WorkspaceDashboard />;
+  return <WorkspaceDashboard userId={user.id} />;
 }

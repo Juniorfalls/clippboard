@@ -11,6 +11,7 @@ import { ClipGallery } from "@/components/ClipGallery";
 import { getAIAnalyzer } from "@/services/ai";
 import { getVideoProcessor } from "@/services/video";
 import { extractAudio } from "@/lib/extract-audio";
+import { loadBrandKit } from "@/lib/brand-kit";
 import { cn } from "@/lib/utils";
 import type { Clip, ProcessingOptions } from "@/types/video";
 
@@ -55,7 +56,7 @@ const PROMPT_PRESETS = [
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
-export function WorkspaceDashboard() {
+export function WorkspaceDashboard({ userId }: { userId: string }) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("Find the 10 best moments from this video.");
   const [activePreset, setActivePreset] = useState<string | null>(null);
@@ -116,11 +117,15 @@ export function WorkspaceDashboard() {
       toast.dismiss(statusToastId);
 
       const processor = getVideoProcessor();
+      const brandKit = loadBrandKit(userId);
       const options: ProcessingOptions = {
         targetAspectRatio: format,
         resolution,
         animationText: overlayText,
         animationStyle: "single-line",
+        brandColor: brandKit.color,
+        brandFont: brandKit.font,
+        brandLogo: brandKit.logo ?? undefined,
       };
 
       let failedCount = 0;
@@ -191,11 +196,15 @@ export function WorkspaceDashboard() {
 
     try {
       const processor = getVideoProcessor();
+      const brandKit = loadBrandKit(userId);
       const options: ProcessingOptions = {
         targetAspectRatio: format,
         resolution,
         animationText: overlayText,
         animationStyle: "single-line",
+        brandColor: brandKit.color,
+        brandFont: brandKit.font,
+        brandLogo: brandKit.logo ?? undefined,
       };
 
       const url = await processor.processClip(
