@@ -17,13 +17,6 @@ function redirectTo(
 }
 
 export async function middleware(request: NextRequest) {
-  // TEMPORARY AUTH BYPASS: local Supabase is failing, so allow /dashboard
-  // through while testing the clipper. Remove this block to restore protection.
-  const bypassAuth = true;
-  if (bypassAuth) {
-    return NextResponse.next();
-  }
-
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const isDashboard = request.nextUrl.pathname.startsWith("/dashboard");
