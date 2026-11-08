@@ -15,6 +15,7 @@ const MomentSchema = z
     title: z.string().trim().min(1).max(120),
     startTime: z.number().finite().min(0),
     endTime: z.number().finite().positive(),
+    viralityScore: z.number().int().min(1).max(100),
   })
   .refine((moment) => moment.endTime > moment.startTime, {
     message: "endTime must be greater than startTime",
@@ -40,8 +41,9 @@ const OPENAI_RESPONSE_SCHEMA = {
           title: { type: "string" },
           startTime: { type: "number" },
           endTime: { type: "number" },
+          viralityScore: { type: "integer", minimum: 1, maximum: 100 },
         },
-        required: ["title", "startTime", "endTime"],
+        required: ["title", "startTime", "endTime", "viralityScore"],
       },
     },
   },
@@ -181,11 +183,11 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought, include a strong hook, and be between 15 and 90 seconds long. Use only timestamps present in the transcript. Return JSON only.",
+            "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought, include a strong hook, and be between 15 and 90 seconds long. For each clip, rate its virality from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. Use only timestamps present in the transcript. Return JSON only.",
         },
         {
           role: "user",
-          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, startTime in seconds, and endTime in seconds.`,
+          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, startTime in seconds, endTime in seconds, and a viralityScore from 1 to 100.`,
         },
       ],
     });
@@ -233,6 +235,7 @@ export async function POST(request: Request) {
           startTime,
           endTime,
           duration: roundToHundredths(endTime - startTime),
+          viralityScore: moment.viralityScore,
           status: "pending" as const,
         };
       })

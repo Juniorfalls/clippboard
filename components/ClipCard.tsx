@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Play, Scissors } from "lucide-react";
+import { Download, Play, Scissors, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { TrimModal } from "@/components/TrimModal";
 import { VideoPreview } from "@/components/VideoPreview";
@@ -157,13 +157,20 @@ export function ClipCard({
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-blue-light bg-gradient-to-r from-brand-blue-light/80 to-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-soft-black shadow-[0_0_18px_rgba(59,130,246,0.35)]">
+            <Sparkles className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
+            {clip.viralityScore} Viral Score
+          </span>
+          <span className="shrink-0 rounded-lg bg-warm-white px-2 py-1 text-[12px] font-semibold text-soft-black/70">
+            {formatDuration(clip.duration)}
+          </span>
+        </div>
+
         <div className="flex items-start justify-between gap-2">
           <h3 className="line-clamp-2 text-[16px] font-semibold leading-[1.25]">
             {clip.title}
           </h3>
-          <span className="shrink-0 rounded-lg bg-warm-white px-2 py-1 text-[12px] font-semibold text-soft-black/70">
-            {formatDuration(clip.duration)}
-          </span>
         </div>
 
         {isProcessing ? (

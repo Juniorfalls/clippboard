@@ -6,6 +6,7 @@ export interface Clip {
   startTime: number; // in seconds
   endTime: number;   // in seconds
   duration: number;
+  viralityScore: number; // AI virality rating from 1 to 100
   status: 'pending' | 'processing' | 'completed' | 'error';
   url?: string;      // The final rendered video blob URL
 }
