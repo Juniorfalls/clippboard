@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Clapperboard, FolderOpen, Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -99,6 +99,7 @@ export function WorkspaceDashboard({
   const [projects, setProjects] = useState<TeamProject[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [clipsThisMonth, setClipsThisMonth] = useState(initialClipsThisMonth);
+  const hasShownClipPersistError = useRef(false);
 
   const starterLimitReached =
     plan === "starter" && clipsThisMonth >= STARTER_CLIP_LIMIT;
@@ -152,8 +153,14 @@ export function WorkspaceDashboard({
 
         if (error) throw error;
         if (!cancelled) setProjects((data ?? []) as TeamProject[]);
-      } catch {
-        if (!cancelled) setProjects([]);
+      } catch (error) {
+        if (!cancelled) {
+          setProjects([]);
+          toast.error("Could not load projects", {
+            description:
+              error instanceof Error ? error.message : "Please try again.",
+          });
+        }
       } finally {
         if (!cancelled) setLoadingProjects(false);
       }
@@ -182,11 +189,15 @@ export function WorkspaceDashboard({
         video_url: null,
       });
 
-      if (error) {
-        console.warn("Could not persist clip metadata", error.message);
-      }
+      if (error) throw error;
     } catch (error) {
-      console.warn("Could not persist clip metadata", error);
+      if (!hasShownClipPersistError.current) {
+        hasShownClipPersistError.current = true;
+        toast.error("Could not save clip analytics", {
+          description:
+            error instanceof Error ? error.message : "Please try again.",
+        });
+      }
     }
   }
 
@@ -262,8 +273,11 @@ export function WorkspaceDashboard({
               ...previous,
             ].slice(0, 6));
           }
-        } catch {
-          // Project persistence should never block clip generation.
+        } catch (error) {
+          toast.error("Could not save this project", {
+            description:
+              error instanceof Error ? error.message : "Please try again.",
+          });
         }
       }
 
@@ -418,21 +432,32 @@ export function WorkspaceDashboard({
           <h1 className="text-[40px] font-bold leading-[1] -tracking-1 md:text-[48px]">
             Workspace
           </h1>
-          <span
-            className={cn(
-              "inline-flex items-center gap-2 rounded-full border border-border-gray bg-white px-3 py-1.5 text-[12px] font-semibold text-soft-black/70",
-              isProcessing && "border-brand-blue-light text-soft-black"
-            )}
-          >
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand-blue-light bg-brand-blue-light/50 px-3 py-1.5 text-[12px] font-semibold text-soft-black/70">
+              <Clapperboard className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
+              Clips Generated This Month:{" "}
+              <span className="font-bold text-soft-black">
+                {plan === "starter"
+                  ? `${clipsThisMonth} / ${STARTER_CLIP_LIMIT}`
+                  : "Unlimited"}
+              </span>
+            </span>
             <span
-              aria-hidden
               className={cn(
-                "h-2 w-2 rounded-full bg-brand-blue",
-                isProcessing && "animate-pulse"
+                "inline-flex items-center gap-2 rounded-full border border-border-gray bg-white px-3 py-1.5 text-[12px] font-semibold text-soft-black/70",
+                isProcessing && "border-brand-blue-light text-soft-black"
               )}
-            />
-            Browser-based processing · Keep tab open
-          </span>
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "h-2 w-2 rounded-full bg-brand-blue",
+                  isProcessing && "animate-pulse"
+                )}
+              />
+              Browser-based processing · Keep tab open
+            </span>
+          </div>
         </div>
         <p className="max-w-xl text-[16px] text-soft-black/70 md:text-[18px]">
           Upload a raw video and Clippboard finds the 10 best moments, reframes

@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/Logo";
 import { TeamSwitcher } from "@/components/TeamSwitcher";
+import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
@@ -51,8 +52,11 @@ export function Sidebar() {
         if (!cancelled && data?.is_admin) {
           setIsAdmin(true);
         }
-      } catch {
-        // The Admin link stays hidden if the profile cannot be checked.
+      } catch (error) {
+        toast.error("Could not verify admin access", {
+          description:
+            error instanceof Error ? error.message : "Please try again.",
+        });
       }
     }
 

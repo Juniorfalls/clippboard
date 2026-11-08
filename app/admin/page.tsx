@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Activity, Film, ShieldCheck, Users } from "lucide-react";
+import { AdminErrorToast } from "@/components/AdminErrorToast";
 import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,14 @@ type ProfileRow = {
   id: string;
   email: string | null;
   is_admin: boolean;
+  plan: "starter" | "pro" | "agency";
   created_at: string;
+};
+
+const PLAN_LABELS: Record<ProfileRow["plan"], string> = {
+  starter: "Starter",
+  pro: "Pro",
+  agency: "Agency",
 };
 
 function formatDate(value: string) {
@@ -39,24 +47,36 @@ export default async function AdminPage() {
     redirect("/dashboard?error=unauthorized");
   }
 
-  const [{ data: metricsRows }, { data: recentProfiles }] = await Promise.all([
-    supabase.rpc("admin_metrics"),
-    supabase
-      .from("profiles")
-      .select("id, email, is_admin, created_at")
-      .order("created_at", { ascending: false })
-      .limit(10),
-  ]);
+  let metricsRows: unknown = null;
+  let allUsers: ProfileRow[] = [];
+  let dataError: string | null = null;
 
-  const stats = metricsRows?.[0] as
+  try {
+    const [metricsResult, usersResult] = await Promise.all([
+      supabase.rpc("admin_metrics"),
+      supabase
+        .from("profiles")
+        .select("id, email, is_admin, plan, created_at")
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (metricsResult.error) throw metricsResult.error;
+    if (usersResult.error) throw usersResult.error;
+
+    metricsRows = metricsResult.data;
+    allUsers = (usersResult.data ?? []) as ProfileRow[];
+  } catch (error) {
+    dataError =
+      error instanceof Error ? error.message : "Unexpected Supabase error.";
+  }
+
+  const stats = (metricsRows as
     | {
         total_users: number | string;
         total_clips: number | string;
         clips_this_week: number | string;
-      }
-    | undefined;
-
-  const recentUsers = (recentProfiles ?? []) as ProfileRow[];
+      }[]
+    | null)?.[0];
 
   const metrics = [
     {
@@ -81,6 +101,7 @@ export default async function AdminPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <AdminErrorToast message={dataError} />
       <header className="flex flex-col gap-3">
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-brand-blue-light bg-brand-blue-light/50 px-3 py-1.5 text-[12px] font-semibold text-soft-black/70">
           <ShieldCheck className="h-4 w-4 text-brand-blue" aria-hidden />
@@ -119,22 +140,22 @@ export default async function AdminPage() {
       </section>
 
       <section
-        aria-label="Recent users"
+        aria-label="All users"
         className="overflow-hidden rounded-3 border border-gray-200 bg-white"
       >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
           <div>
-            <h2 className="text-[24px] font-bold leading-[1.25]">Recent users</h2>
+            <h2 className="text-[24px] font-bold leading-[1.25]">All users</h2>
             <p className="mt-1 text-[14px] text-soft-black/60">
-              The 10 most recent accounts.
+              Every account, signup date and current plan.
             </p>
           </div>
           <span className="rounded-full bg-warm-white px-3 py-1.5 text-[12px] font-semibold text-soft-black/60">
-            {recentUsers.length} shown
+            {allUsers.length} total
           </span>
         </div>
 
-        {recentUsers.length === 0 ? (
+        {allUsers.length === 0 ? (
           <div className="px-5 py-12 text-center text-[14px] text-soft-black/60">
             No user profiles have been created yet.
           </div>
@@ -150,12 +171,12 @@ export default async function AdminPage() {
                     Signup Date
                   </th>
                   <th scope="col" className="px-5 py-3 text-[12px] font-semibold uppercase tracking-wide text-soft-black/50">
-                    Role
+                    Plan
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {recentUsers.map((person) => (
+                {allUsers.map((person) => (
                   <tr key={person.id} className="border-b border-gray-100 last:border-b-0">
                     <td className="px-5 py-4 text-[14px] font-semibold text-soft-black">
                       {person.email ?? "No email"}
@@ -166,12 +187,15 @@ export default async function AdminPage() {
                     <td className="px-5 py-4">
                       <span
                         className={
-                          person.is_admin
-                            ? "inline-flex rounded-full border border-brand-blue-light bg-brand-blue-light/60 px-3 py-1 text-[12px] font-semibold text-soft-black"
-                            : "inline-flex rounded-full border border-gray-200 bg-warm-white px-3 py-1 text-[12px] font-semibold text-soft-black/60"
+                          person.plan === "agency"
+                            ? "inline-flex rounded-full border border-brand-blue bg-brand-blue-light/70 px-3 py-1 text-[12px] font-semibold text-soft-black"
+                            : person.plan === "pro"
+                              ? "inline-flex rounded-full border border-brand-blue-light bg-brand-blue-light/50 px-3 py-1 text-[12px] font-semibold text-soft-black"
+                              : "inline-flex rounded-full border border-gray-200 bg-warm-white px-3 py-1 text-[12px] font-semibold text-soft-black/60"
                         }
                       >
-                        {person.is_admin ? "Admin" : "Member"}
+                        {PLAN_LABELS[person.plan] ?? "Starter"}
+                        {person.is_admin ? " · Admin" : ""}
                       </span>
                     </td>
                   </tr>
