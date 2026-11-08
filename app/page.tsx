@@ -182,29 +182,39 @@ function HeroMockup() {
 
           <div className="mt-3 grid grid-cols-3 gap-2">
             {[
-              "from-blue-200 to-blue-500",
-              "from-emerald-100 to-emerald-400",
-              "from-amber-100 to-orange-400",
-            ].map((gradient, index) => (
+              {
+                src: "https://assets.mixkit.co/videos/preview/mixkit-man-dancing-under-changing-lights-1240-large.mp4",
+                title: "The one habit that changed everything",
+              },
+              {
+                src: "https://assets.mixkit.co/videos/preview/mixkit-woman-typing-on-a-laptop-4392-large.mp4",
+                title: "Build a content system that lasts",
+              },
+              {
+                src: "https://assets.mixkit.co/videos/preview/mixkit-couple-walking-on-the-beach-1210-large.mp4",
+                title: "What great storytelling really needs",
+              },
+            ].map((clip, index) => (
               <div
-                key={gradient}
+                key={clip.src}
                 className="overflow-hidden rounded-xl border border-border-gray bg-warm-white"
               >
-                <div
-                  className={cn(
-                    "relative aspect-[9/13] bg-gradient-to-br",
-                    gradient
-                  )}
-                >
+                <div className="relative aspect-[9/13] overflow-hidden">
+                  <video
+                    src={clip.src}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    aria-hidden
+                    className="w-full h-full object-cover rounded-xl"
+                  />
+                  <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-soft-black/30 via-transparent to-soft-black/10" aria-hidden />
                   <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[7px] font-bold text-soft-black">
                     {92 - index * 11}
                   </span>
                   <span className="absolute bottom-1.5 left-1.5 right-1.5 rounded-md bg-white/90 px-1.5 py-1 text-[8px] font-bold leading-tight text-soft-black">
-                    {index === 0
-                      ? "The one habit that changed everything"
-                      : index === 1
-                        ? "Build a content system that lasts"
-                        : "What great storytelling really needs"}
+                    {clip.title}
                   </span>
                 </div>
                 <div className="flex items-center justify-between px-2 py-1.5 text-[7px] font-semibold text-soft-black/50">
