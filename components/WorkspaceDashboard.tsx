@@ -25,12 +25,40 @@ const RESOLUTIONS = [
   { value: "4K", label: "4K Upscale" },
 ];
 
+const PROMPT_PRESETS = [
+  {
+    id: "viral-hook",
+    label: "Viral Hook",
+    prompt:
+      "Find the most engaging viral hook in this video and turn it into a punchy 9:16 TikTok clip with a strong opening line.",
+  },
+  {
+    id: "educational",
+    label: "Educational",
+    prompt:
+      "Find the clearest educational explanations in this video and turn each into a concise 9:16 clip that teaches one useful idea.",
+  },
+  {
+    id: "funny-moment",
+    label: "Funny Moment",
+    prompt:
+      "Find the funniest moments in this video and cut them into shareable 9:16 clips that land the joke quickly.",
+  },
+  {
+    id: "podcast-highlight",
+    label: "Podcast Highlight",
+    prompt:
+      "Find the strongest podcast highlights in this video and turn them into 9:16 clips with a clear, self-contained story.",
+  },
+];
+
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
 export function WorkspaceDashboard() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("Find the 10 best moments from this video.");
+  const [activePreset, setActivePreset] = useState<string | null>(null);
   const [overlayText, setOverlayText] = useState("");
   const [format, setFormat] = useState<ProcessingOptions["targetAspectRatio"]>("9:16");
   const [resolution, setResolution] =
@@ -182,16 +210,45 @@ export function WorkspaceDashboard() {
         />
 
         <div className="grid gap-5 rounded-2xl border border-border-gray bg-white p-5 md:grid-cols-2 md:p-6">
-          <CustomTextArea
-            label="What should Clippboard find?"
-            value={prompt}
-            onChange={setPrompt}
-            placeholder="Find the best 10 moments. Add the text 'Subscribe for more'..."
-            hint="Describe the moments and style you want the AI to look for."
-            maxLength={240}
-            rows={4}
-            disabled={isProcessing}
-          />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Prompt presets">
+              {PROMPT_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  aria-pressed={activePreset === preset.id}
+                  disabled={isProcessing}
+                  onClick={() => {
+                    setPrompt(preset.prompt);
+                    setActivePreset(preset.id);
+                  }}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-full border px-4 py-2 text-[14px] font-semibold transition-colors duration-200",
+                    "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue",
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                    activePreset === preset.id
+                      ? "border-brand-blue bg-brand-blue-light text-soft-black"
+                      : "border-border-gray bg-white text-soft-black hover:bg-warm-white"
+                  )}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <CustomTextArea
+              label="What should Clippboard find?"
+              value={prompt}
+              onChange={(value) => {
+                setPrompt(value);
+                setActivePreset(null);
+              }}
+              placeholder="Find the best 10 moments. Add the text 'Subscribe for more'..."
+              hint="Describe the moments and style you want the AI to look for."
+              maxLength={240}
+              rows={4}
+              disabled={isProcessing}
+            />
+          </div>
           <CustomTextArea
             label="On-screen text"
             value={overlayText}
