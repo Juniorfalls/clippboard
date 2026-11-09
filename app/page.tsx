@@ -6,7 +6,7 @@ import {
   Download,
   Palette,
   Play,
-  Scissors,
+  Send,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -45,51 +45,50 @@ const primaryButton = cn(
   focusRing
 );
 
-const FEATURES: {
+const BENTO_FEATURES: {
   title: string;
   description: string;
   icon: LucideIcon;
   items: string[];
+  large?: boolean;
 }[] = [
   {
-    title: "Analyze",
-    description: "Find the perfect moments.",
+    title: "AI Analysis & Editing",
+    description: "Let AI find the perfect moments and reframe them automatically.",
     icon: Sparkles,
-    items: [
-      "AI Highlight Detection",
-      "Filler Word Removal",
-      "Engagement Scoring",
-    ],
+    items: ["AI Highlight Detection", "9:16 Auto-Reframing", "Filler Word Removal"],
+    large: true,
   },
   {
-    title: "Edit",
-    description: "Automated video editing.",
-    icon: Scissors,
-    items: [
-      "9:16 Auto-Reframing",
-      "Active Speaker Tracking",
-      "Karaoke-Style Captions",
-    ],
-  },
-  {
-    title: "Customize",
+    title: "Brand Customization",
     description: "Your brand, every time.",
     icon: Palette,
     items: [
       "Custom Fonts & Colors",
       "Animated Intros/Outros",
-      "Brand Template Library",
+      "Brand Templates",
     ],
   },
   {
-    title: "Export",
-    description: "Professional outputs.",
+    title: "Social Media Scheduling",
+    description: "Publish directly to your audience.",
+    icon: Send,
+    items: [
+      "Connect TikTok & YouTube",
+      "Schedule Posts",
+      "Direct Publishing",
+    ],
+  },
+  {
+    title: "Professional Exports",
+    description: "Take your content to the next level.",
     icon: Download,
     items: [
       "4K Upscaling",
-      "Final Cut Pro XML",
-      "Browser-Based Rendering",
+      "Final Cut Pro XML Export",
+      "MCP Server Access (for AI agents)",
     ],
+    large: true,
   },
 ];
 
@@ -148,7 +147,7 @@ function CheckMark() {
 
 function HeroMockup() {
   return (
-    <div className="relative mx-auto mt-12 max-w-5xl overflow-hidden rounded-3 border-4 border-blue-200 bg-warm-white shadow-[0_28px_80px_rgba(28,28,28,0.12)] md:mt-16">
+    <div className="relative mx-auto w-full max-w-[640px] overflow-hidden rounded-3 border-4 border-blue-200 bg-warm-white shadow-[0_28px_80px_rgba(28,28,28,0.12)]">
       <div className="flex items-center gap-3 border-b border-border-gray bg-white/80 px-4 py-3">
         <span className="h-2.5 w-2.5 rounded-full bg-red-300" aria-hidden />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" aria-hidden />
@@ -433,71 +432,98 @@ export default function HomePage() {
       </header>
 
       <main>
-        <section className="px-4 pb-20 pt-16 sm:px-6 md:pb-24 md:pt-24">
-          <div className="mx-auto flex max-w-[1280px] flex-col items-center text-center">
-            <p className="text-[16px] font-bold text-soft-black sm:text-[18px]">
-              The video platform made for creators:
-            </p>
-            <h1 className="mt-4 max-w-5xl text-[46px] font-bold leading-[0.95] -tracking-1 text-soft-black sm:text-[64px] lg:text-[80px]">
-              Turn long videos into engaging short-form content
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-[16px] leading-relaxed text-gray-500 sm:text-[18px]">
-              Clippboard uses AI to find the best moments, reframe them to 9:16,
-              and add animated captions—all processed securely in your browser.
-            </p>
-            <Link href="/login" className={cn(primaryButton, "mt-8 px-7 py-4 text-[18px]")}>
-              Start Clipping Free
-              <ArrowRight className="h-5 w-5" aria-hidden />
-            </Link>
-          </div>
-          <HeroMockup />
-        </section>
+        <section className="px-4 pb-20 pt-10 sm:px-6 sm:pt-14 md:pb-24 md:pt-20">
+          <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 items-center gap-12 lg:grid-cols-2">
+            <div className="flex flex-col items-start">
+              <p className="text-[16px] font-bold text-soft-black sm:text-[18px]">
+                The AI video workspace for creators.
+              </p>
+              <h1 className="mt-4 max-w-2xl text-[46px] font-bold leading-[1] -tracking-1 text-soft-black sm:text-[64px]">
+                Turn long videos into engaging short-form content.
+              </h1>
+              <p className="mt-5 max-w-xl text-[18px] leading-relaxed text-gray-500 sm:mt-6">
+                Clippboard uses AI to find the best moments, reframe them to
+                9:16, and add animated captions—all processed securely in your
+                browser.
+              </p>
+              <Link
+                href="/login"
+                className={cn(primaryButton, "mt-6 px-7 py-4 text-[18px] sm:mt-8")}
+              >
+                Start Clipping Free
+                <ArrowRight className="h-5 w-5" aria-hidden />
+              </Link>
+            </div>
 
-        <section
-          id="features"
-          className="scroll-mt-24 bg-soft-black px-4 py-20 text-warm-white sm:px-6 md:py-24"
-        >
-          <div className="mx-auto w-full max-w-shell">
-            <h2 className="max-w-4xl text-[36px] font-bold leading-[1.03] -tracking-1 sm:text-[48px] lg:text-[64px]">
-              Clippboard is the{" "}
-              <span className="text-blue-500">video-first operating system</span>{" "}
-              for creators who mean business
-            </h2>
-
-            <div className="mt-12 grid grid-cols-1 gap-4 xs:grid-cols-2 md:grid-cols-4">
-              {FEATURES.map(({ title, description, icon: Icon, items }) => (
-                <article
-                  key={title}
-                  className="rounded-lg bg-warm-white/10 px-4 pb-10 pt-4 lg:px-5 lg:pt-5"
-                >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-blue text-soft-black">
-                    <Icon className="h-5 w-5" aria-hidden />
-                  </span>
-                  <h3 className="mt-5 text-[24px] font-bold leading-[1.25]">
-                    {title}
-                  </h3>
-                  <p className="mt-2 text-[16px] text-warm-white/70">
-                    {description}
-                  </p>
-                  <hr className="my-2 border-gray-800" />
-                  <ul className="mt-4 flex flex-col gap-3">
-                    {items.map((item) => (
-                      <li
-                        key={item}
-                        className="flex items-start gap-2 text-[14px] text-warm-white/85"
-                      >
-                        <CheckMark />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </article>
-              ))}
+            <div className="relative">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -inset-8 rounded-full bg-gradient-to-br from-brand-blue/30 via-blue-200/40 to-transparent blur-3xl sm:-inset-12"
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-6 -top-8 h-32 w-32 rounded-full bg-brand-blue/25 blur-2xl"
+              />
+              <div className="relative">
+                <HeroMockup />
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="overflow-hidden bg-soft-black py-16 text-white">
+        <section
+          id="features"
+          className="scroll-mt-24 bg-soft-black px-4 py-24 text-warm-white sm:px-6"
+        >
+          <div className="mx-auto w-full max-w-shell">
+            <h2 className="max-w-4xl text-[36px] font-bold leading-[1.03] -tracking-1 sm:text-[48px] lg:text-[64px]">
+              One workspace for every step between{" "}
+              <span className="text-blue-500">raw footage and finished clips.</span>
+            </h2>
+
+            <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {BENTO_FEATURES.map(
+                ({ title, description, icon: Icon, items, large }, index) => (
+                  <article
+                    key={title}
+                    className={cn(
+                      "flex flex-col rounded-3 border border-white/10 bg-white/5 p-8",
+                      large && "md:col-span-2 lg:col-span-2"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-blue text-soft-black">
+                        <Icon className="h-5 w-5" aria-hidden />
+                      </span>
+                      <span className="text-[12px] font-semibold uppercase tracking-widest text-warm-white/30">
+                        0{index + 1}
+                      </span>
+                    </div>
+                    <h3 className="mt-8 text-[26px] font-bold leading-[1.25]">
+                      {title}
+                    </h3>
+                    <p className="mt-2 max-w-xl text-[16px] text-warm-white/70">
+                      {description}
+                    </p>
+                    <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                      {items.map((item) => (
+                        <li
+                          key={item}
+                          className="flex items-start gap-2 text-[14px] text-warm-white/85"
+                        >
+                          <CheckMark />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                )
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="overflow-hidden bg-soft-black pb-20 pt-8 text-white">
           <h2 className="mx-auto max-w-3xl px-4 text-center text-[28px] font-bold leading-[1.15] -tracking-1 sm:text-[36px]">
             Thousands of professional creators are using Clippboard
           </h2>
