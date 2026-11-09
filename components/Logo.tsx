@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 type LogoSize = "sm" | "md" | "lg";
 
 const SIZE_CLASSES: Record<LogoSize, string> = {
-  sm: "h-7",
-  md: "h-8",
-  lg: "h-10",
+  sm: "h-7 w-7",
+  md: "h-8 w-8",
+  lg: "h-10 w-10",
 };
 
 export function Logo({
@@ -17,53 +17,39 @@ export function Logo({
   size?: LogoSize;
   className?: string;
 }) {
-  return (
-    <svg
-      viewBox={showText ? "0 0 200 40" : "0 0 40 40"}
-      role="img"
-      aria-label="Clippboard"
-      className={cn("w-auto", SIZE_CLASSES[size], className)}
-    >
-      <defs>
-        <mask
-          id="clippboard-mark-cutout"
-          maskUnits="userSpaceOnUse"
-          x="0"
-          y="0"
-          width="40"
-          height="40"
-        >
-          <rect width="40" height="40" rx="10" fill="white" />
-          <path
-            d="M28.2 12.2a11.5 11.5 0 1 0 0 15.6"
-            fill="none"
-            stroke="black"
-            strokeWidth="5.5"
-            strokeLinecap="round"
-          />
-        </mask>
-      </defs>
+  const sizeClasses = cn("shrink-0", SIZE_CLASSES[size]);
 
-      <rect
-        width="40"
-        height="40"
-        rx="10"
-        fill="currentColor"
-        mask="url(#clippboard-mark-cutout)"
-      />
+  return (
+    <span className={cn("inline-flex items-center gap-2 text-current", className)}>
+      <svg viewBox="0 0 32 32" role="img" aria-label="Clippboard logo" className={sizeClasses}>
+        {/* Outer rounded square - uses currentColor so it adapts to light/dark mode */}
+        <rect width="32" height="32" rx="8" fill="currentColor" />
+
+        {/* Inner white cutout - uses the warm-white background color */}
+        <path
+          d="M10 11C10 10.4477 10.4477 10 11 10H21C21.5523 10 22 10.4477 22 11V12.5C22 13.0523 21.5523 13.5 21 13.5H18C17.4477 13.5 17 13.9477 17 14.5V17.5C17 18.0523 17.4477 18.5 18 18.5H21C21.5523 18.5 22 18.9477 22 19.5V21C22 21.5523 21.5523 22 21 22H11C10.4477 22 10 21.5523 10 21V11Z"
+          fill="#F9F7F4"
+        />
+      </svg>
 
       {showText && (
-        <text
-          x="52"
-          y="28"
-          fill="currentColor"
-          fontSize="26"
-          fontWeight="700"
-          letterSpacing="-1"
+        <svg
+          viewBox="0 0 150 32"
+          aria-hidden="true"
+          className={cn("w-auto", SIZE_CLASSES[size])}
         >
-          Clippboard
-        </text>
+          <text
+            x="0"
+            y="24"
+            fill="currentColor"
+            fontSize="26"
+            fontWeight="700"
+            letterSpacing="-1"
+          >
+            Clippboard
+          </text>
+        </svg>
       )}
-    </svg>
+    </span>
   );
 }
