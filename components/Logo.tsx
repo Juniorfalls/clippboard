@@ -7,7 +7,7 @@ interface LogoProps {
 
 export function Logo({ className = "", iconOnly = false }: LogoProps) {
   return (
-    <div className={`flex items-center gap-2 text-current ${className}`}>
+    <div className={`flex items-center gap-2 ${className}`}>
       <svg 
         viewBox="0 0 32 32" 
         fill="none" 
@@ -15,14 +15,19 @@ export function Logo({ className = "", iconOnly = false }: LogoProps) {
         className="h-8 w-8 shrink-0" 
         aria-label="Clippboard logo"
       >
-        {/* The black rounded square - adapts to light/dark mode via currentColor */}
-        <rect width="32" height="32" rx="8" fill="currentColor" />
+        <mask id="logo-cutout-mask">
+          {/* White background means "keep" */}
+          <rect width="32" height="32" fill="white" />
+          
+          {/* Black path means "cut out" - This is the exact shape of your 'C' */}
+          <path 
+            d="M 10 10 L 19 10 L 22 13 L 22 14.5 C 22 14.776 21.776 15 21.5 15 L 17.5 15 C 17.224 15 17 15.224 17 15.5 L 17 17.5 C 17 17.776 17.224 18 17.5 18 L 21.5 18 C 21.776 18 22 18.224 22 18.5 L 22 21.5 C 22 21.776 21.776 22 21.5 22 L 10.5 22 C 10.224 22 10 21.776 10 21.5 Z" 
+            fill="black" 
+          />
+        </mask>
         
-        {/* The inner cutout shape */}
-        <path 
-          d="M10 11C10 10.4477 10.4477 10 11 10H21C21.5523 10 22 10.4477 22 11V12.5C22 13.0523 21.5523 13.5 21 13.5H18C17.4477 13.5 17 13.9477 17 14.5V17.5C17 18.0523 17.4477 18.5 18 18.5H21C21.5523 18.5 22 18.9477 22 19.5V21C22 21.5523 21.5523 22 21 22H11C10.4477 22 10 21.5523 10 21V11Z" 
-          fill="#F9F7F4" 
-        />
+        {/* The outer rounded square inherits the text color (black in header, white in footer) */}
+        <rect width="32" height="32" rx="8" fill="currentColor" mask="url(#logo-cutout-mask)" />
       </svg>
       
       {!iconOnly && (
