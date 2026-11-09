@@ -476,7 +476,7 @@ export default function HomePage() {
           className="scroll-mt-24 bg-soft-black px-4 py-24 text-warm-white sm:px-6"
         >
           <div className="mx-auto w-full max-w-shell">
-            <h2 className="max-w-4xl text-[36px] font-bold leading-[1.03] -tracking-1 sm:text-[48px] lg:text-[64px]">
+            <h2 className="mx-auto max-w-4xl text-center text-[36px] font-bold leading-[1.03] -tracking-1 sm:text-[48px] lg:text-[64px]">
               One workspace for every step between{" "}
               <span className="text-blue-500">raw footage and finished clips.</span>
             </h2>
