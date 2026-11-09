@@ -22,7 +22,7 @@ import { createClient } from "@/utils/supabase/client";
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard", label: "Workspace", icon: Sparkles },
-  { href: "/projects", label: "Projects", icon: FolderOpen },
+  { href: "/dashboard/projects", label: "Projects", icon: FolderOpen },
   { href: "/dashboard/team", label: "Team", icon: UsersRound },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
@@ -119,7 +119,10 @@ export function Sidebar() {
         className="no-scrollbar flex flex-1 flex-row gap-1 overflow-x-auto lg:flex-col lg:overflow-visible"
       >
         {NAV.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href;
+          const active =
+            href === "/dashboard"
+              ? pathname === href
+              : pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
               key={href}
@@ -128,7 +131,7 @@ export function Sidebar() {
               className={cn(
                 "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold duration-200 lg:gap-3 lg:text-[16px]",
                 active
-                  ? "bg-white text-soft-black shadow-sm"
+                  ? "bg-brand-blue-light/70 text-soft-black"
                   : "text-soft-black/70 hover:bg-white hover:text-soft-black",
                 focusRing
               )}
@@ -149,7 +152,7 @@ export function Sidebar() {
             className={cn(
               "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold duration-200 lg:gap-3 lg:text-[16px]",
               pathname === "/admin"
-                ? "bg-white text-soft-black shadow-sm"
+                ? "bg-brand-blue-light/70 text-soft-black"
                 : "text-soft-black/70 hover:bg-white hover:text-soft-black",
               focusRing
             )}
@@ -172,7 +175,7 @@ export function Sidebar() {
           aria-current={pathname === "/help" ? "page" : undefined}
           className={cn(
             "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] font-semibold text-soft-black/50 duration-200 hover:bg-white hover:text-soft-black",
-            pathname === "/help" && "bg-white text-soft-black",
+            pathname === "/help" && "bg-brand-blue-light/70 text-soft-black",
             focusRing
           )}
         >
@@ -184,7 +187,7 @@ export function Sidebar() {
           aria-current={pathname === "/support" ? "page" : undefined}
           className={cn(
             "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] font-semibold text-soft-black/50 duration-200 hover:bg-white hover:text-soft-black",
-            pathname === "/support" && "bg-white text-soft-black",
+            pathname === "/support" && "bg-brand-blue-light/70 text-soft-black",
             focusRing
           )}
         >
