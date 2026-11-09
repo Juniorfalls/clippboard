@@ -59,6 +59,7 @@ export interface ProcessingOptions {
   brandColor: string;
   brandFont: string;
   brandLogo?: string;
+  addWatermark: boolean;
   introText?: string;
   outroText?: string;
   transcript?: TranscriptSegment[];

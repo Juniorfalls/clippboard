@@ -73,11 +73,13 @@ export function WorkspaceDashboard({
   userId,
   plan,
   initialClipsThisMonth,
+  addWatermark,
   unauthorized = false,
 }: {
   userId: string;
   plan: Plan;
   initialClipsThisMonth: number;
+  addWatermark: boolean;
   unauthorized?: boolean;
 }) {
   const { activeTeamId, activeTeam } = useTeam();
@@ -329,6 +331,7 @@ export function WorkspaceDashboard({
         brandColor: selectedTemplate?.color ?? brandKit.color,
         brandFont: selectedTemplate?.font ?? brandKit.font,
         brandLogo: brandKit.logo ?? undefined,
+        addWatermark,
         introText: selectedTemplate?.introText || undefined,
         outroText: selectedTemplate?.outroText || undefined,
         transcript: analysis.transcript ?? [],
@@ -436,6 +439,7 @@ export function WorkspaceDashboard({
         brandColor: selectedTemplate?.color ?? brandKit.color,
         brandFont: selectedTemplate?.font ?? brandKit.font,
         brandLogo: brandKit.logo ?? undefined,
+        addWatermark,
         introText: selectedTemplate?.introText || undefined,
         outroText: selectedTemplate?.outroText || undefined,
         transcript,

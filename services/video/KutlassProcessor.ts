@@ -467,6 +467,7 @@ export class KutlassProcessor implements IVideoProcessor {
     const duration = Math.max(0.1, clip.endTime - clip.startTime);
     const brollFileNames: string[] = [];
     const voiceoverFileName = `voiceover-${id}.mp3`;
+    const watermarkFileName = `watermark-${id}.png`;
     let hasVoiceover = false;
 
     const handleProgress = ({ progress }: { progress: number }) => {
@@ -558,14 +559,33 @@ export class KutlassProcessor implements IVideoProcessor {
         }
       }
 
+      let hasWatermark = false;
+
+      if (options.addWatermark) {
+        try {
+          const response = await fetch('/logo.png');
+          if (response.ok) {
+            const data = new Uint8Array(await response.arrayBuffer());
+            if (data.byteLength > 0) {
+              await ffmpeg.writeFile(watermarkFileName, data);
+              hasWatermark = true;
+            }
+          }
+        } catch (error) {
+          console.warn('[KutlassProcessor] Could not load the watermark logo.', error);
+        }
+      }
+
       const hasBroll = brollFiles.length > 0;
       let filterGraph: string | null = null;
 
-      if (hasBroll || hasVoiceover) {
+      if (hasBroll || hasVoiceover || hasWatermark) {
         let graph = '';
+        const videoOutput = hasWatermark ? 'vpre' : 'vout';
+        const baseFilters = filters.length > 0 ? filters.join(',') : 'null';
 
         if (hasBroll) {
-          graph = `[0:v]${filters.length > 0 ? filters.join(',') : 'null'}[base0]`;
+          graph = `[0:v]${baseFilters}[base0]`;
           let current = 'base0';
 
           brollFiles.forEach((broll, index) => {
@@ -590,11 +610,19 @@ export class KutlassProcessor implements IVideoProcessor {
             current = `v${index}`;
           });
 
-          graph += `;[${current}]null[vout]`;
+          graph += `;[${current}]null[${videoOutput}]`;
         } else {
-          graph = `[0:v]${
-            filters.length > 0 ? filters.join(',') : 'null'
-          }[vout]`;
+          graph = `[0:v]${baseFilters}[${videoOutput}]`;
+        }
+
+        if (hasWatermark) {
+          const watermarkIndex =
+            1 + brollFiles.length + (hasVoiceover ? 1 : 0);
+          graph +=
+            `;[${watermarkIndex}:v]scale=-1:40:flags=lanczos,` +
+            `format=rgba,colorchannelmixer=aa=0.7[wm]`;
+          graph +=
+            `;[${videoOutput}][wm]overlay=W-w-20:H-h-20:format=auto[vout]`;
         }
 
         if (hasVoiceover) {
@@ -623,6 +651,7 @@ export class KutlassProcessor implements IVideoProcessor {
           broll.name,
         ]),
         ...(hasVoiceover ? ['-i', voiceoverFileName] : []),
+        ...(hasWatermark ? ['-i', watermarkFileName] : []),
         '-t',
         duration.toFixed(3),
         ...(filterGraph
@@ -674,6 +703,7 @@ export class KutlassProcessor implements IVideoProcessor {
       await ffmpeg.deleteFile(inputName).catch(() => undefined);
       await ffmpeg.deleteFile(subtitleName).catch(() => undefined);
       await ffmpeg.deleteFile(voiceoverFileName).catch(() => undefined);
+      await ffmpeg.deleteFile(watermarkFileName).catch(() => undefined);
       await Promise.all(
         brollFileNames.map((name) =>
           ffmpeg.deleteFile(name).catch(() => undefined)
@@ -740,7 +770,7 @@ export class KutlassProcessor implements IVideoProcessor {
         : 'No transcript captions available for this clip.'
     );
 
-    if (assContent || cropFilter || splitFilter) {
+    if (assContent || cropFilter || splitFilter || options.addWatermark) {
       try {
         return await this.renderWithCaptions(
           sourceFile,

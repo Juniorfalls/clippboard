@@ -55,11 +55,14 @@ export default async function WorkspacePage({
       ).toISOString()),
   ]);
 
+  const plan = normalizePlan(profile?.plan);
+
   return (
     <WorkspaceDashboard
       userId={user.id}
-      plan={normalizePlan(profile?.plan)}
+      plan={plan}
       initialClipsThisMonth={clipsThisMonth ?? 0}
+      addWatermark={plan === "starter"}
       unauthorized={searchParams.error === "unauthorized"}
     />
   );
