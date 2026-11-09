@@ -96,32 +96,32 @@ const TESTIMONIALS = [
   {
     name: "Maya Chen",
     title: "Content Creator",
-    avatar: "/avatars/creator-1.svg",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80",
   },
   {
     name: "Jordan Blake",
     title: "Podcast Host",
-    avatar: "/avatars/creator-2.svg",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80",
   },
   {
     name: "Priya Shah",
     title: "Marketing Director",
-    avatar: "/avatars/creator-3.svg",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
   },
   {
     name: "Theo Martins",
     title: "Video Editor",
-    avatar: "/avatars/creator-4.svg",
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80",
   },
   {
     name: "Lena Ortiz",
     title: "Social Media Manager",
-    avatar: "/avatars/creator-1.svg",
+    avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80",
   },
   {
     name: "Sam Rivera",
     title: "Founder & Creator",
-    avatar: "/avatars/creator-3.svg",
+    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=300&q=80",
   },
 ];
 
@@ -552,7 +552,7 @@ export default function HomePage() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={person.avatar}
-                        alt={`${person.name}, ${person.title}`}
+                        alt={`Portrait of ${person.name}`}
                         className="h-[150px] w-[150px] rounded-full border border-white/10 object-cover sm:h-[187px] sm:w-[187px]"
                         loading="lazy"
                       />
