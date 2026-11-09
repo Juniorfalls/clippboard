@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { AccountSettingsForm } from "@/components/AccountSettingsForm";
 import { BrandKitForm } from "@/components/BrandKitForm";
+import { SettingsPanel } from "@/components/SettingsPanel";
+import { normalizePlan } from "@/lib/plans";
 import { BrandTemplateManager } from "@/components/BrandTemplateManager";
 import { createClient } from "@/utils/supabase/server";
 
@@ -14,6 +15,12 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email, full_name, company_name, plan")
+    .eq("id", user.id)
+    .maybeSingle();
+
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
@@ -26,14 +33,17 @@ export default async function SettingsPage() {
         </p>
       </header>
 
-      <AccountSettingsForm
+      <SettingsPanel
         userId={user.id}
-        initialName={
-          typeof user.user_metadata?.full_name === "string"
+        initialEmail={profile?.email ?? user.email ?? ""}
+        initialFullName={
+          profile?.full_name ??
+          (typeof user.user_metadata?.full_name === "string"
             ? user.user_metadata.full_name
-            : ""
+            : "")
         }
-        initialEmail={user.email ?? ""}
+        initialCompanyName={profile?.company_name ?? ""}
+        plan={normalizePlan(profile?.plan)}
       />
 
       <section className="flex flex-col gap-4">
