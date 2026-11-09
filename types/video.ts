@@ -47,6 +47,7 @@ export interface Clip {
   scheduledFor?: string;
   publishPlatforms?: string[];
   url?: string;      // The final rendered video blob URL
+  storageUrl?: string; // Public Supabase Storage URL used for publishing
 }
 
 export interface ProcessingOptions {

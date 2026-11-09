@@ -68,9 +68,33 @@ OPENAI_BASE_URL=your_openai_compatible_base_url
 OPENAI_MODEL=gpt-4o
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
 PEXELS_API_KEY=your_pexels_api_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+TOKEN_ENCRYPTION_KEY=your_32_byte_base64_key
+TIKTOK_CLIENT_KEY=your_tiktok_client_key
+TIKTOK_CLIENT_SECRET=your_tiktok_client_secret
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+CRON_SECRET=your_cron_secret
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
 ```
 
 `PEXELS_API_KEY` enables stock B-roll suggestions. Without it, B-roll lookups are skipped.
+
+`SUPABASE_SERVICE_ROLE_KEY` is required for the scheduled publishing cron. `TOKEN_ENCRYPTION_KEY` encrypts OAuth tokens at rest and must stay stable after accounts are connected. Generate one with:
+
+```bash
+openssl rand -base64 32
+```
+
+## Social Publishing Setup
+
+Clippboard connects accounts with OAuth 2.0 and stores tokens encrypted with AES-256-GCM. Rendered clips are uploaded to the public `rendered_clips` Supabase Storage bucket so TikTok and YouTube can fetch stable video URLs.
+
+1. Create a TikTok developer app and add `https://your-domain.com/api/auth/tiktok/callback` as a redirect URI. Request `video.upload` and `video.publish` scopes.
+2. Create a Google Cloud OAuth client and enable the YouTube Data API v3. Add `https://your-domain.com/api/auth/youtube/callback` as an authorized redirect URI.
+3. Set `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `CRON_SECRET`.
+4. Keep TikTok apps in sandbox mode with `TIKTOK_PRIVACY_LEVEL=SELF_ONLY` until the app passes TikTok review. YouTube uploads default to private via `YOUTUBE_PRIVACY_STATUS`.
+5. `vercel.json` runs `/api/cron/publish` every 5 minutes. Vercel sends `CRON_SECRET` automatically when the variable is configured.
 
 ## Available Scripts
 
@@ -95,6 +119,8 @@ npm run start   # Run the production build
    Also update the **Site URL** to your production domain. Without this step, magic-link sign-in will fail or redirect to the wrong host.
 
 6. Run `supabase db push` against the production Supabase project if migrations have not already been applied.
+7. Add `TOKEN_ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, and all OAuth credentials to the Vercel project settings. Confirm the `rendered_clips` bucket and storage policies were created by the latest migration.
+8. Add the production OAuth callback URLs in the TikTok and Google developer consoles.
 
 ## Authentication
 
@@ -137,6 +163,8 @@ Migrations live in `supabase/migrations/` and cover:
 - Profiles and admin roles
 - Clip metadata tracking
 - Subscription plans
+- Connected social accounts, encrypted OAuth tokens, scheduled posts
+- The public `rendered_clips` storage bucket and policies
 
 Apply them with the Supabase CLI:
 
@@ -151,6 +179,8 @@ supabase db push
 - Supabase Row Level Security restricts users to their own profiles, clips, projects, and team data.
 - Admin metrics are exposed through security-definer database functions that verify admin access.
 - Plan limits are enforced server-side when the dashboard loads and again in the UI.
+- OAuth tokens are encrypted with AES-256-GCM and are never exposed through browser-readable database grants.
+- Scheduled publishing runs only through the service-role cron route, optionally protected by `CRON_SECRET`.
 
 ## Project Structure
 

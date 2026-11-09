@@ -9,3 +9,4 @@ next-env.d.ts
 
 # Keep the environment template in version control
 !.env.local.example
+.vercel

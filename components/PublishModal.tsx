@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   SOCIAL_PLATFORMS,
-  loadConnectedAccounts,
+  type ConnectedAccount,
   type SocialPlatformId,
 } from "@/lib/social-accounts";
 import type { Clip } from "@/types/video";
@@ -87,9 +87,10 @@ export function PublishModal({
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
   );
   const [platforms, setPlatforms] = useState<Set<string>>(new Set());
-  const [connectedAccounts, setConnectedAccounts] = useState<SocialPlatformId[]>(
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>(
     []
   );
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [timeError, setTimeError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -105,8 +106,38 @@ export function PublishModal({
     );
     setVisibleMonth(new Date(next.getFullYear(), next.getMonth(), 1));
     setPlatforms(new Set());
-    setConnectedAccounts(loadConnectedAccounts(userId));
     setTimeError("");
+    setLoadingAccounts(true);
+
+    let cancelled = false;
+
+    async function loadAccounts() {
+      try {
+        const response = await fetch("/api/connected-accounts", {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Could not load connected accounts.");
+        const data = (await response.json()) as {
+          accounts?: ConnectedAccount[];
+        };
+        if (!cancelled) setConnectedAccounts(data.accounts ?? []);
+      } catch (error) {
+        if (!cancelled) {
+          toast.error("Could not load connected accounts", {
+            description:
+              error instanceof Error ? error.message : "Please try again.",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingAccounts(false);
+      }
+    }
+
+    void loadAccounts();
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, userId]);
 
   const calendarCells = useMemo(() => {
@@ -166,9 +197,23 @@ export function PublishModal({
       return;
     }
 
-    if (platforms.size === 0) {
+    const selectedAccounts = connectedAccounts.filter((account) =>
+      platforms.has(account.id)
+    );
+
+    if (selectedAccounts.length === 0) {
       toast.error("Choose a destination", {
-        description: "Select a connected platform before scheduling.",
+        description: "Select a connected account before scheduling.",
+      });
+      return;
+    }
+
+    const publishVideoUrl =
+      clip.storageUrl ?? (clip.url?.startsWith("https://") ? clip.url : null);
+
+    if (!publishVideoUrl) {
+      toast.error("Clip is still uploading", {
+        description: "Wait for the rendered clip to finish uploading.",
       });
       return;
     }
@@ -192,32 +237,39 @@ export function PublishModal({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clipId: clip.id,
-          title: clip.title,
-          scheduledFor: scheduledDate.toISOString(),
-          platforms: Array.from(platforms),
-        }),
-      });
+      for (const account of selectedAccounts) {
+        const response = await fetch("/api/schedule-post", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            connected_account_id: account.id,
+            video_url: publishVideoUrl,
+            title: clip.title,
+            scheduled_for: scheduledDate.toISOString(),
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error("The scheduling service did not accept this post.");
+        if (!response.ok) {
+          const data = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(data?.error ?? "The post could not be scheduled.");
+        }
       }
 
-      const platformLabels = Array.from(platforms)
+      const platformLabels = selectedAccounts
         .map(
-          (id) =>
-            SOCIAL_PLATFORMS.find((platform) => platform.id === id)?.label
+          (account) =>
+            SOCIAL_PLATFORMS.find(
+              (platform) => platform.id === account.platform
+            )?.label
         )
         .filter(Boolean)
         .join(", ");
 
       onScheduled(clip, {
         scheduledFor: scheduledDate.toISOString(),
-        platforms: Array.from(platforms),
+        platforms: selectedAccounts.map((account) => account.platform),
       });
       toast.success(
         `Scheduled for ${formatSchedule(scheduledDate)} on ${platformLabels}`
@@ -276,7 +328,11 @@ export function PublishModal({
               Publish to
             </span>
 
-            {connectedAccounts.length === 0 ? (
+            {loadingAccounts ? (
+              <div className="rounded-2 border border-border-gray bg-warm-white px-4 py-3 text-[13px] text-soft-black/60">
+                Loading connected accounts...
+              </div>
+            ) : connectedAccounts.length === 0 ? (
               <div className="flex flex-col items-start gap-3 rounded-2 border border-dashed border-border-gray bg-warm-white p-5">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-brand-blue">
                   <Link2 className="h-5 w-5" aria-hidden />
@@ -297,17 +353,19 @@ export function PublishModal({
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
-                {SOCIAL_PLATFORMS.filter((platform) =>
-                  connectedAccounts.includes(platform.id)
-                ).map(({ id, label }) => {
-                  const Icon = PLATFORM_ICONS[id];
-                  const active = platforms.has(id);
+                {connectedAccounts.map((account) => {
+                  const platform = SOCIAL_PLATFORMS.find(
+                    (item) => item.id === account.platform
+                  );
+                  if (!platform) return null;
+                  const Icon = PLATFORM_ICONS[account.platform];
+                  const active = platforms.has(account.id);
                   return (
                     <button
-                      key={id}
+                      key={account.id}
                       type="button"
                       aria-pressed={active}
-                      onClick={() => togglePlatform(id)}
+                      onClick={() => togglePlatform(account.id)}
                       className={cn(
                         "flex items-center gap-3 rounded-2 border px-4 py-3 text-left duration-200",
                         active
@@ -327,9 +385,15 @@ export function PublishModal({
                         <Icon className="h-5 w-5" aria-hidden />
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="text-[14px] font-semibold">{label}</span>
+                        <span className="text-[14px] font-semibold">
+                          {platform.label}
+                        </span>
                         <span className="text-[12px] text-soft-black/50">
-                          {active ? "Selected for publishing" : "Ready to publish"}
+                          {active
+                            ? "Selected for publishing"
+                            : account.platform_user_id
+                              ? account.platform_user_id
+                              : "Ready to publish"}
                         </span>
                       </span>
                       {active && (

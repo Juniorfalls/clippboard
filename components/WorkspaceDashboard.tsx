@@ -186,7 +186,7 @@ export function WorkspaceDashboard({
         title: clip.title,
         duration: clip.duration,
         engagement_score: clip.engagementScore,
-        video_url: null,
+        video_url: clip.storageUrl ?? null,
       });
 
       if (error) throw error;
@@ -198,6 +198,40 @@ export function WorkspaceDashboard({
             error instanceof Error ? error.message : "Please try again.",
         });
       }
+    }
+  }
+
+  async function uploadRenderedVideo(clip: Clip, renderedUrl: string) {
+    try {
+      const response = await fetch(renderedUrl);
+      if (!response.ok) throw new Error("The rendered clip could not be read.");
+      const blob = await response.blob();
+      if (!blob.size) throw new Error("The rendered clip is empty.");
+
+      const supabase = createClient();
+      const path = `${userId}/${clip.id}-${Date.now()}.mp4`;
+      const { error } = await supabase.storage
+        .from("rendered_clips")
+        .upload(path, blob, {
+          contentType: "video/mp4",
+          cacheControl: "31536000",
+          upsert: true,
+        });
+
+      if (error) throw error;
+
+      const { data } = supabase.storage
+        .from("rendered_clips")
+        .getPublicUrl(path);
+      return data.publicUrl;
+    } catch (error) {
+      toast.error("Clip rendered but could not upload", {
+        description:
+          error instanceof Error
+            ? `${error.message} Publishing will be unavailable for this clip.`
+            : "Publishing will be unavailable for this clip.",
+      });
+      return null;
     }
   }
 
@@ -321,9 +355,20 @@ export function WorkspaceDashboard({
           );
 
           setProgressById((previous) => ({ ...previous, [clip.id]: 100 }));
-          updateClip(clip.id, { status: "completed", url });
+          const storageUrl = await uploadRenderedVideo(clip, url);
+          const completedClip: Clip = {
+            ...clip,
+            status: "completed",
+            url,
+            storageUrl: storageUrl ?? undefined,
+          };
+          updateClip(clip.id, {
+            status: "completed",
+            url,
+            storageUrl: storageUrl ?? undefined,
+          });
           setClipsThisMonth((count) => count + 1);
-          void persistClip(clip);
+          void persistClip(completedClip);
         } catch (error) {
           failedCount += 1;
           updateClip(clip.id, { status: "error" });
@@ -409,11 +454,17 @@ export function WorkspaceDashboard({
       );
 
       setProgressById((previous) => ({ ...previous, [updatedClip.id]: 100 }));
-      updateClip(updatedClip.id, { status: "completed", url });
+      const storageUrl = await uploadRenderedVideo(updatedClip, url);
+      updateClip(updatedClip.id, {
+        status: "completed",
+        url,
+        storageUrl: storageUrl ?? undefined,
+      });
       setClipsThisMonth((count) => count + 1);
       void persistClip({
         ...updatedClip,
         duration: updatedClip.endTime - updatedClip.startTime,
+        storageUrl: storageUrl ?? undefined,
       });
       toast.success("Trim saved", { description: updatedClip.title });
     } catch (error) {

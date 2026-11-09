@@ -20,8 +20,7 @@ import { cn } from "@/lib/utils";
 import type { Plan } from "@/lib/plans";
 import {
   SOCIAL_PLATFORMS,
-  loadConnectedAccounts,
-  saveConnectedAccounts,
+  type ConnectedAccount,
   type SocialPlatformId,
 } from "@/lib/social-accounts";
 
@@ -113,13 +112,72 @@ export function SettingsPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [autoDownload, setAutoDownload] = useState(false);
-  const [connectedAccounts, setConnectedAccounts] = useState<SocialPlatformId[]>(
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>(
     []
   );
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
 
   useEffect(() => {
-    setConnectedAccounts(loadConnectedAccounts(userId));
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("social_connected");
+    const error = params.get("social_error");
 
+    if (connected) {
+      const label =
+        SOCIAL_PLATFORMS.find((platform) => platform.id === connected)?.label ??
+        connected;
+      toast.success(`${label} connected`);
+    }
+
+    if (error) {
+      toast.error("Could not connect account", { description: error });
+    }
+
+    if (connected || error) {
+      params.delete("social_connected");
+      params.delete("social_error");
+      const query = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        `${window.location.pathname}${query ? `?${query}` : ""}`
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAccounts() {
+      try {
+        const response = await fetch("/api/connected-accounts", {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Could not load connected accounts.");
+        const data = (await response.json()) as {
+          accounts?: ConnectedAccount[];
+        };
+        if (!cancelled) setConnectedAccounts(data.accounts ?? []);
+      } catch (error) {
+        if (!cancelled) {
+          toast.error("Could not load connected accounts", {
+            description:
+              error instanceof Error ? error.message : "Please try again.",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingAccounts(false);
+      }
+    }
+
+    void loadAccounts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  useEffect(() => {
     try {
       const raw = window.localStorage.getItem(
         `clippboard:preferences:${userId}`
@@ -166,21 +224,22 @@ export function SettingsPanel({
     }
   }
 
-  function toggleIntegration(id: SocialPlatformId, label: string) {
-    const isConnected = connectedAccounts.includes(id);
-    const next = isConnected
-      ? connectedAccounts.filter((account) => account !== id)
-      : [...connectedAccounts, id];
-
+  async function disconnectIntegration(account: ConnectedAccount, label: string) {
     try {
-      saveConnectedAccounts(userId, next);
-      setConnectedAccounts(next);
-      toast.success(
-        isConnected ? `${label} disconnected` : `${label} connected`
+      const response = await fetch(`/api/connected-accounts/${account.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error("Could not disconnect this account.");
+      }
+      setConnectedAccounts((current) =>
+        current.filter((item) => item.id !== account.id)
       );
-    } catch {
-      toast.error("Could not update connected accounts", {
-        description: "Check your browser storage settings and try again.",
+      toast.success(`${label} disconnected`);
+    } catch (error) {
+      toast.error("Could not disconnect account", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
       });
     }
   }
@@ -369,9 +428,17 @@ export function SettingsPanel({
             </div>
 
             <div className="flex flex-col gap-3">
+              {loadingAccounts && (
+                <div className="rounded-2 border border-border-gray bg-warm-white px-4 py-3 text-[13px] text-soft-black/60">
+                  Loading connected accounts...
+                </div>
+              )}
+
               {SOCIAL_PLATFORMS.map((platform) => {
                 const Icon = PLATFORM_ICONS[platform.id];
-                const connected = connectedAccounts.includes(platform.id);
+                const account = connectedAccounts.find(
+                  (item) => item.platform === platform.id
+                );
 
                 return (
                   <div
@@ -393,22 +460,40 @@ export function SettingsPanel({
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {connected && (
+                      {account && (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
                           Connected
                         </span>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => toggleIntegration(platform.id, platform.label)}
-                        className={cn(
-                          "inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
-                          focusRing
-                        )}
-                      >
-                        {connected ? "Disconnect" : "Connect"}
-                      </button>
+                      {account ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void disconnectIntegration(account, platform.label)
+                          }
+                          className={cn(
+                            "inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                            focusRing
+                          )}
+                        >
+                          Disconnect
+                        </button>
+                      ) : platform.oauth ? (
+                        <a
+                          href={`/api/auth/${platform.id}`}
+                          className={cn(
+                            "inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                            focusRing
+                          )}
+                        >
+                          Connect
+                        </a>
+                      ) : (
+                        <span className="inline-flex items-center justify-center rounded-2 border border-border-gray bg-warm-white px-4 py-2.5 text-[14px] font-semibold text-soft-black/40">
+                          Coming Soon
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
