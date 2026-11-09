@@ -20,7 +20,7 @@ export function LegalPage({
       <header className="border-b border-border-gray bg-warm-white px-4 py-4 sm:px-6">
         <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between">
           <Link href="/" aria-label="Clippboard home" className={cn("rounded-lg", focusRing)}>
-<Logo variant="dark" />
+          <Logo />
           </Link>
           <Link
             href="/"

@@ -96,7 +96,7 @@ export function LoginForm() {
     <main className="flex min-h-screen items-center justify-center bg-warm-white px-4 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-<Logo variant="dark" />
+          <Logo />
           <p className="mt-2 text-[14px] font-semibold text-soft-black/50">
             AI Video Clipping Workspace
           </p>

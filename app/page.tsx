@@ -10,7 +10,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import { Logo } from "@/components/Logo";
+import { Logo, LogoMark } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { SITE_URL } from "@/lib/site";
 
@@ -134,7 +134,8 @@ function HeroMockup() {
       <div className="grid gap-4 bg-white/50 p-3 sm:p-5 md:grid-cols-[150px_1fr] md:p-6">
         <aside className="hidden rounded-2 border border-border-gray bg-white p-3 md:block">
           <div className="flex items-center gap-2 rounded-lg bg-warm-white px-2.5 py-2">
-            <Logo variant="dark" className="[&>span]:hidden" />
+            <LogoMark className="h-6 w-6" />
+            <span className="text-[13px] font-bold">Clippboard</span>
           </div>
           <div className="mt-4 space-y-1.5">
             {["Workspace", "Projects", "Team", "Settings"].map(
@@ -354,7 +355,7 @@ export default function HomePage() {
             aria-label="Clippboard home"
             className={cn("rounded-lg", focusRing)}
           >
-<Logo variant="dark" />
+            <Logo />
           </Link>
           <div className="flex items-center gap-8">
             <nav
@@ -624,7 +625,8 @@ export default function HomePage() {
               aria-label="Clippboard home"
               className={cn("inline-flex items-center gap-2 rounded-lg", focusRing)}
             >
-<Logo variant="light" />
+              <LogoMark />
+              <span className="text-2xl font-bold -tracking-1 text-warm-white">Clippboard</span>
             </Link>
             <p className="mt-5 text-[14px] text-white/70">
               © 2026 Clippboard. All rights reserved.
