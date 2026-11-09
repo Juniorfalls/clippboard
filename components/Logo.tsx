@@ -7,6 +7,9 @@ interface LogoProps {
 }
 
 export function Logo({ className = "", iconOnly = false, inverted = false }: LogoProps) {
+  const invertImage =
+    inverted || className.split(/\s+/).includes("text-warm-white");
+
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <Image
@@ -14,7 +17,7 @@ export function Logo({ className = "", iconOnly = false, inverted = false }: Log
         alt="Clippboard logo"
         width={32}
         height={32}
-        className={`h-8 w-auto shrink-0${inverted ? " invert" : ""}`}
+        className={`h-8 w-auto shrink-0${invertImage ? " invert" : ""}`}
       />
 
       {!iconOnly && (

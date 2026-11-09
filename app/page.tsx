@@ -624,7 +624,7 @@ export default function HomePage() {
               aria-label="Clippboard home"
               className={cn("inline-flex items-center gap-2 rounded-lg", focusRing)}
             >
-<Logo className="text-warm-white" inverted />
+<Logo className="text-warm-white" />
             </Link>
             <p className="mt-5 text-[14px] text-white/70">
               © 2026 Clippboard. All rights reserved.
