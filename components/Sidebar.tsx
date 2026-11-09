@@ -104,7 +104,7 @@ export function Sidebar() {
           focusRing
         )}
       >
-<Logo className="text-soft-black" />
+<Logo variant="dark" />
       </Link>
 
       <div className="hidden lg:block">

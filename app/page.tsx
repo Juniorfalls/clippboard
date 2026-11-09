@@ -134,7 +134,7 @@ function HeroMockup() {
       <div className="grid gap-4 bg-white/50 p-3 sm:p-5 md:grid-cols-[150px_1fr] md:p-6">
         <aside className="hidden rounded-2 border border-border-gray bg-white p-3 md:block">
           <div className="flex items-center gap-2 rounded-lg bg-warm-white px-2.5 py-2">
-            <Logo iconOnly className="text-soft-black" />
+            <Logo variant="dark" className="[&>span]:hidden" />
           </div>
           <div className="mt-4 space-y-1.5">
             {["Workspace", "Projects", "Team", "Settings"].map(
@@ -354,7 +354,7 @@ export default function HomePage() {
             aria-label="Clippboard home"
             className={cn("rounded-lg", focusRing)}
           >
-<Logo className="text-soft-black" />
+<Logo variant="dark" />
           </Link>
           <div className="flex items-center gap-8">
             <nav
@@ -624,7 +624,7 @@ export default function HomePage() {
               aria-label="Clippboard home"
               className={cn("inline-flex items-center gap-2 rounded-lg", focusRing)}
             >
-<Logo className="text-warm-white" />
+<Logo variant="light" />
             </Link>
             <p className="mt-5 text-[14px] text-white/70">
               © 2026 Clippboard. All rights reserved.
