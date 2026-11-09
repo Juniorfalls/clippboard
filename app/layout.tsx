@@ -4,14 +4,13 @@ import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { AppShell } from "@/components/AppShell";
 import { cn } from "@/lib/utils";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://clippboard.com";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Clippboard | AI Video Clipping",
     template: "%s | Clippboard",
@@ -24,25 +23,25 @@ export const metadata: Metadata = {
     title: "Clippboard | AI Video Clipping",
     description:
       "Turn long-form videos into engaging, vertical short-form clips with secure browser-based AI processing.",
-    url: siteUrl,
+    url: SITE_URL,
     siteName: "Clippboard",
     type: "website",
     images: [
       {
-        // Replace /public/og-image.png with the final social preview image.
-        url: "/og-image.png",
+        url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
         alt: "Clippboard AI video clipping workspace",
       },
     ],
   },
+  alternates: { canonical: SITE_URL },
   twitter: {
     card: "summary_large_image",
     title: "Clippboard | AI Video Clipping",
     description:
       "Turn long-form videos into engaging, vertical short-form clips with secure browser-based AI processing.",
-    images: ["/og-image.png"],
+    images: [`${SITE_URL}/og-image.png`],
   },
 };
 

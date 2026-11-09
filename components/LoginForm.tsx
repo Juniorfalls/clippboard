@@ -148,8 +148,8 @@ export function LoginForm() {
                   aria-hidden
                 />
                 <p>
-                  Your video is processed securely in your browser. Access is
-                  limited to authorized team members.
+                  Securely access your AI video workspace. Your video is
+                  processed in your browser.
                 </p>
               </div>
 

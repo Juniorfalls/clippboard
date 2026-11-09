@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { WorkspaceDashboard } from "@/components/WorkspaceDashboard";
 import { normalizePlan } from "@/lib/plans";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Workspace",
@@ -11,12 +12,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   openGraph: {
     title: "Workspace | Clippboard",
+    url: `${SITE_URL}/dashboard`,
     description:
       "Generate, edit, caption, and export engaging short-form clips from your long-form videos.",
     images: [
       {
-        // Replace /public/og-image.png with the final social preview image.
-        url: "/og-image.png",
+        url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
         alt: "Clippboard workspace",

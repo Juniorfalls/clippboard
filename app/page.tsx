@@ -10,9 +10,9 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import { CheckoutButton } from "@/components/CheckoutButton";
 import { Logo, LogoMark } from "@/components/Logo";
 import { cn } from "@/lib/utils";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: { absolute: "Clippboard | AI Video Clipping" },
@@ -22,19 +22,20 @@ export const metadata: Metadata = {
     title: "Clippboard | AI Video Clipping",
     description:
       "Turn long-form videos into engaging vertical clips with AI moment detection, transcription, captions, and secure browser-based rendering.",
-    url: "/",
+    url: `${SITE_URL}/`,
     siteName: "Clippboard",
     type: "website",
     images: [
       {
         // Replace /public/og-image.png with the final social preview image.
-        url: "/og-image.png",
+        url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
         alt: "Clippboard AI video clipping workspace",
       },
     ],
   },
+  alternates: { canonical: `${SITE_URL}/` },
 };
 
 const focusRing =
@@ -56,7 +57,12 @@ const BENTO_FEATURES: {
     title: "AI Analysis & Editing",
     description: "Let AI find the perfect moments and reframe them automatically.",
     icon: Sparkles,
-    items: ["AI Highlight Detection", "9:16 Auto-Reframing", "Filler Word Removal"],
+    items: [
+      "AI Highlight Detection",
+      "9:16 Auto-Reframing",
+      "Filler Word Removal",
+      "Smart Clip Trimming",
+    ],
     large: true,
   },
   {
@@ -86,42 +92,10 @@ const BENTO_FEATURES: {
     items: [
       "4K Upscaling",
       "Final Cut Pro XML Export",
+      "Batch Export Presets",
       "MCP Server Access (for AI agents)",
     ],
     large: true,
-  },
-];
-
-const TESTIMONIALS = [
-  {
-    name: "Maya Chen",
-    title: "Content Creator",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80",
-  },
-  {
-    name: "Jordan Blake",
-    title: "Podcast Host",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80",
-  },
-  {
-    name: "Priya Shah",
-    title: "Marketing Director",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
-  },
-  {
-    name: "Theo Martins",
-    title: "Video Editor",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80",
-  },
-  {
-    name: "Lena Ortiz",
-    title: "Social Media Manager",
-    avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80",
-  },
-  {
-    name: "Sam Rivera",
-    title: "Founder & Creator",
-    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=300&q=80",
   },
 ];
 
@@ -129,7 +103,7 @@ function CheckMark() {
   return (
     <svg
       viewBox="0 0 20 20"
-      aria-hidden
+      aria-hidden="true"
       className="h-4 w-4 shrink-0 text-brand-blue"
       fill="none"
     >
@@ -149,9 +123,9 @@ function HeroMockup() {
   return (
     <div className="relative mx-auto w-full max-w-[640px] overflow-hidden rounded-3 border-4 border-blue-200 bg-warm-white shadow-[0_28px_80px_rgba(28,28,28,0.12)]">
       <div className="flex items-center gap-3 border-b border-border-gray bg-white/80 px-4 py-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-300" aria-hidden />
-        <span className="h-2.5 w-2.5 rounded-full bg-amber-300" aria-hidden />
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" aria-hidden />
+        <span className="h-2.5 w-2.5 rounded-full bg-red-300" aria-hidden="true" />
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-300" aria-hidden="true" />
+        <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" aria-hidden="true" />
         <span className="mx-auto rounded-full bg-warm-white px-3 py-1 text-[11px] font-semibold text-soft-black/50">
           app.clippboard.com
         </span>
@@ -199,7 +173,7 @@ function HeroMockup() {
               </p>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border-gray bg-warm-white px-2.5 py-1 text-[9px] font-semibold text-soft-black/60">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
               Processing in browser
             </span>
           </div>
@@ -210,19 +184,19 @@ function HeroMockup() {
                 src: "https://assets.codepen.io/6093409/river.mp4",
                 poster:
                   "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?q=80&w=600&auto=format&fit=crop",
-                title: "The one habit that changed everything",
+                title: "Changed everything",
               },
               {
                 src: "https://www.w3schools.com/html/mov_bbb.mp4",
                 poster:
                   "https://images.unsplash.com/photo-1621360841012-786b0690274b?q=80&w=600&auto=format&fit=crop",
-                title: "Build a content system that lasts",
+                title: "Content system",
               },
               {
                 src: "https://assets.codepen.io/6093409/river.mp4",
                 poster:
                   "https://images.unsplash.com/photo-1589903308904-1010c2294adc?q=80&w=600&auto=format&fit=crop",
-                title: "What great storytelling really needs",
+                title: "Great storytelling",
               },
             ].map((clip, index) => (
               <div
@@ -236,16 +210,16 @@ function HeroMockup() {
                     muted
                     playsInline
                     poster={clip.poster}
-                    aria-hidden
+                    aria-hidden="true"
                     className="absolute inset-0 w-full h-full object-cover z-0"
                   >
                     <source src={clip.src} type="video/mp4" />
                   </video>
-                  <span className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-soft-black/30 via-transparent to-soft-black/10" aria-hidden />
+                  <span className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-soft-black/30 via-transparent to-soft-black/10" aria-hidden="true" />
                   <span className="pointer-events-none absolute left-1.5 top-1.5 z-10 rounded-full bg-white/90 px-1.5 py-0.5 text-[7px] font-bold text-soft-black">
                     {92 - index * 11}
                   </span>
-                  <span className="pointer-events-none absolute bottom-1.5 left-1.5 right-1.5 z-10 rounded-md bg-white/90 px-1.5 py-1 text-[8px] font-bold leading-tight text-soft-black">
+                  <span className="pointer-events-none absolute bottom-1.5 left-1.5 right-1.5 z-10 truncate whitespace-nowrap rounded-md bg-white/90 px-1.5 py-1 text-[8px] font-bold leading-tight text-soft-black">
                     {clip.title}
                   </span>
                 </div>
@@ -258,19 +232,19 @@ function HeroMockup() {
           </div>
 
           <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px]">
-            <div className="rounded-xl border border-border-gray bg-warm-white p-2.5">
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-brand-blue text-soft-black">
-                  <Captions className="h-3 w-3" aria-hidden />
+            <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border-gray bg-warm-white p-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-blue text-soft-black">
+                  <Captions className="h-3 w-3" aria-hidden="true" />
                 </span>
-                <div>
-                  <p className="text-[9px] font-bold">Captions are on brand</p>
-                  <p className="text-[8px] text-soft-black/45">
+                <div className="min-w-0">
+                  <p className="truncate text-[9px] font-bold">Captions are on brand</p>
+                  <p className="truncate text-[8px] text-soft-black/45">
                     Inter · #3B82F6 · bold karaoke style
                   </p>
                 </div>
               </div>
-              <div className="mt-2 flex gap-1">
+              <div className="mt-2 flex min-w-0 flex-wrap gap-1">
                 {[70, 45, 85, 60, 35, 75, 50].map((width, index) => (
                   <span
                     key={index}
@@ -281,7 +255,7 @@ function HeroMockup() {
               </div>
             </div>
             <div className="flex items-center justify-center gap-2 rounded-xl bg-soft-black p-2.5 text-white">
-              <Play className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
+              <Play className="h-3.5 w-3.5 text-brand-blue" aria-hidden="true" />
               <span className="text-[9px] font-semibold">Preview clips</span>
             </div>
           </div>
@@ -297,7 +271,7 @@ const PRICING_TIERS = [
     price: "$0",
     cadence: "/ month",
     description: "For creators testing the workflow.",
-    features: ["3 videos/month", "1080p Export", "Watermark applied."],
+    features: ["3 videos/month", "1080p Export", "Watermark applied"],
     cta: "Start for Free",
     href: "/login",
     highlighted: false,
@@ -363,7 +337,7 @@ function SocialIcon({
         strokeLinecap="round"
         strokeLinejoin="round"
         className="h-5 w-5"
-        aria-hidden
+        aria-hidden="true"
       >
         {children}
       </svg>
@@ -451,17 +425,17 @@ export default function HomePage() {
                 className={cn(primaryButton, "mt-6 px-7 py-4 text-[18px] sm:mt-8")}
               >
                 Start Clipping Free
-                <ArrowRight className="h-5 w-5" aria-hidden />
+                <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Link>
             </div>
 
             <div className="relative">
               <div
-                aria-hidden
+                aria-hidden="true"
                 className="pointer-events-none absolute -inset-8 rounded-full bg-gradient-to-br from-brand-blue/30 via-blue-200/40 to-transparent blur-3xl sm:-inset-12"
               />
               <div
-                aria-hidden
+                aria-hidden="true"
                 className="pointer-events-none absolute -right-6 -top-8 h-32 w-32 rounded-full bg-brand-blue/25 blur-2xl"
               />
               <div className="relative">
@@ -493,13 +467,13 @@ export default function HomePage() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-blue text-soft-black">
-                        <Icon className="h-5 w-5" aria-hidden />
+                        <Icon className="h-5 w-5" aria-hidden="true" />
                       </span>
                       <span className="text-[12px] font-semibold uppercase tracking-widest text-warm-white/30">
                         0{index + 1}
                       </span>
                     </div>
-                    <h3 className="mt-8 text-[26px] font-bold leading-[1.25]">
+                    <h3 className="mt-8 min-h-[66px] text-[26px] font-bold leading-[1.25]">
                       {title}
                     </h3>
                     <p className="mt-2 max-w-xl text-[16px] text-warm-white/70">
@@ -509,7 +483,7 @@ export default function HomePage() {
                       {items.map((item) => (
                         <li
                           key={item}
-                          className="flex items-start gap-2 text-[14px] text-warm-white/85"
+                          className="flex items-center gap-2 text-[14px] text-warm-white/85"
                         >
                           <CheckMark />
                           {item}
@@ -523,49 +497,28 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="overflow-hidden bg-soft-black pb-20 pt-8 text-white">
-          <h2 className="mx-auto max-w-3xl px-4 text-center text-[28px] font-bold leading-[1.15] -tracking-1 sm:text-[36px]">
-            Thousands of professional creators are using Clippboard
-          </h2>
-
-          <div className="relative mt-10">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-soft-black to-transparent sm:w-28"
-            />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-soft-black to-transparent sm:w-28"
-            />
-            <div className="no-scrollbar flex w-max animate-marquee hover:[animation-play-state:paused] motion-reduce:animate-none">
-              {[0, 1].map((group) => (
-                <div
-                  key={group}
-                  className="flex shrink-0 gap-8 pr-8"
-                  aria-hidden={group === 1}
-                >
-                  {TESTIMONIALS.map((person) => (
-                    <figure
-                      key={`${group}-${person.name}`}
-                      className="flex w-[150px] shrink-0 flex-col items-center text-center sm:w-[187px]"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={person.avatar}
-                        alt={`Portrait of ${person.name}`}
-                        className="h-[150px] w-[150px] rounded-full border border-white/10 object-cover sm:h-[187px] sm:w-[187px]"
-                        loading="lazy"
-                      />
-                      <figcaption className="mt-4">
-                        <p className="text-[18px] font-semibold">{person.name}</p>
-                        <p className="mt-1 text-[14px] text-gray-400">
-                          {person.title}
-                        </p>
-                      </figcaption>
-                    </figure>
-                  ))}
-                </div>
-              ))}
+        <section className="bg-soft-black px-4 pb-20 pt-8 text-white sm:px-6">
+          <div className="mx-auto w-full max-w-4xl">
+            <div className="rounded-3 border border-white/10 bg-white/5 px-6 py-12 text-center sm:px-12 sm:py-16">
+              <span className="inline-flex items-center gap-2 rounded-full border border-brand-blue/40 bg-brand-blue/10 px-4 py-1.5 text-[13px] font-semibold text-brand-blue">
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                Early Access
+              </span>
+              <h2 className="mx-auto mt-6 max-w-3xl text-[30px] font-bold leading-[1.08] -tracking-1 sm:text-[40px]">
+                Be first in line for a faster way to create clips.
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-[16px] leading-relaxed text-white/70 sm:text-[18px]">
+                Clippboard is opening to a small group of creators. Join the
+                early access list to try new features first and help shape what
+                comes next.
+              </p>
+              <Link
+                href="/login"
+                className={cn(primaryButton, "mt-7 px-6 py-3.5")}
+              >
+                Request Early Access
+                <ArrowRight className="h-5 w-5" aria-hidden="true" />
+              </Link>
             </div>
           </div>
         </section>
@@ -607,7 +560,7 @@ export default function HomePage() {
                     <h3 className="text-[24px] font-bold leading-[1.25] text-soft-black">
                       {tier.name}
                     </h3>
-                    <p className="mt-2 text-[14px] text-soft-black/60">
+                    <p className="mt-2 min-h-[48px] text-[14px] text-soft-black/60">
                       {tier.description}
                     </p>
                     <div className="mt-6 flex items-end gap-1">
@@ -623,31 +576,25 @@ export default function HomePage() {
                       {tier.features.map((feature) => (
                         <li
                           key={feature}
-                          className="flex items-start gap-2 text-[14px] text-soft-black/75"
+                          className="flex items-center gap-2 text-[14px] text-soft-black/75"
                         >
                           <CheckMark />
                           {feature}
                         </li>
                       ))}
                     </ul>
-                    {tier.highlighted ? (
-                      <CheckoutButton
-                        plan="pro"
-                        className="mt-8 inline-flex items-center justify-center rounded-2 bg-brand-blue px-5 py-3 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover disabled:cursor-not-allowed disabled:bg-brand-blue-light"
-                      >
-                        {tier.cta}
-                      </CheckoutButton>
-                    ) : (
-                      <Link
-                        href={tier.href}
-                        className={cn(
-                          "mt-8 inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-5 py-3 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
-                          focusRing
-                        )}
-                      >
-                        {tier.cta}
-                      </Link>
-                    )}
+                    <Link
+                      href={tier.href}
+                      className={cn(
+                        "mt-8 inline-flex items-center justify-center rounded-2 px-5 py-3 text-[14px] font-semibold duration-200",
+                        tier.highlighted
+                          ? "bg-brand-blue text-soft-black hover:bg-brand-blue-hover"
+                          : "border border-border-gray bg-white text-soft-black hover:bg-warm-white",
+                        focusRing
+                      )}
+                    >
+                      {tier.cta}
+                    </Link>
                   </article>
                 );
 
@@ -664,7 +611,7 @@ export default function HomePage() {
             </h2>
             <Link href="/login" className={cn(primaryButton, "mt-7 px-7 py-4 text-[18px]")}>
               Start Clipping Free
-              <ArrowRight className="h-5 w-5" aria-hidden />
+              <ArrowRight className="h-5 w-5" aria-hidden="true" />
             </Link>
           </div>
         </section>
@@ -683,19 +630,19 @@ export default function HomePage() {
               </span>
               <span className="text-2xl font-bold -tracking-1">Clippboard</span>
             </Link>
-            <p className="mt-5 text-[14px] text-white/50">
+            <p className="mt-5 text-[14px] text-white/70">
               © 2026 Clippboard. All rights reserved.
             </p>
             <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[14px]">
               <a
                 href="/privacy"
-                className={cn("text-white/60 duration-200 hover:text-brand-blue", focusRing)}
+                className={cn("text-white/70 duration-200 hover:text-brand-blue", focusRing)}
               >
                 Privacy Policy
               </a>
               <a
                 href="/terms"
-                className={cn("text-white/60 duration-200 hover:text-brand-blue", focusRing)}
+                className={cn("text-white/70 duration-200 hover:text-brand-blue", focusRing)}
               >
                 Terms of Service
               </a>
