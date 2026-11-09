@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { LogoMark } from "@/components/Logo";
+import { Logo } from "@/components/Logo";
 import { TeamSwitcher } from "@/components/TeamSwitcher";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
@@ -104,10 +104,9 @@ export function Sidebar() {
           focusRing
         )}
       >
-        <LogoMark />
-        <span className="hidden text-2xl font-bold -tracking-1 text-soft-black lg:inline">
-          Clippboard
-        </span>
+        <div className="text-soft-black">
+          <Logo size="lg" />
+        </div>
       </Link>
 
       <div className="hidden lg:block">
