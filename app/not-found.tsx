@@ -11,9 +11,7 @@ export default function NotFound() {
     <main className="flex min-h-screen flex-col bg-warm-white text-soft-black">
       <header className="px-4 py-5 sm:px-6">
         <Link href="/" aria-label="Clippboard home" className={cn("inline-flex rounded-lg", focusRing)}>
-          <div className="text-soft-black">
-            <Logo />
-          </div>
+<Logo className="text-soft-black" />
         </Link>
       </header>
 
