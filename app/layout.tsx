@@ -18,7 +18,6 @@ export const metadata: Metadata = {
   description:
     "Turn long-form videos into engaging, vertical short-form clips with secure browser-based AI processing.",
   applicationName: "Clippboard",
-  icons: { icon: "/icon.svg" },
   openGraph: {
     title: "Clippboard | AI Video Clipping",
     description:
