@@ -94,7 +94,7 @@ Clippboard connects accounts with OAuth 2.0 and stores tokens encrypted with AES
 2. Create a Google Cloud OAuth client and enable the YouTube Data API v3. Add `https://your-domain.com/api/auth/youtube/callback` as an authorized redirect URI.
 3. Set `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `CRON_SECRET`.
 4. Keep TikTok apps in sandbox mode with `TIKTOK_PRIVACY_LEVEL=SELF_ONLY` until the app passes TikTok review. YouTube uploads default to private via `YOUTUBE_PRIVACY_STATUS`.
-5. `vercel.json` runs `/api/cron/publish` every 5 minutes. Vercel sends `CRON_SECRET` automatically when the variable is configured.
+5. Scheduled publishing runs in Supabase, not Vercel. Enable `pg_cron` and `pg_net` under **Database → Extensions**, then run `supabase/sql/schedule_publish_cron.sql` in the Supabase SQL Editor. Replace the service-role placeholder first; the script stores the project URL and key in Vault and schedules `/api/cron/publish` every minute.
 
 ## Available Scripts
 
@@ -119,8 +119,9 @@ npm run start   # Run the production build
    Also update the **Site URL** to your production domain. Without this step, magic-link sign-in will fail or redirect to the wrong host.
 
 6. Run `supabase db push` against the production Supabase project if migrations have not already been applied.
-7. Add `TOKEN_ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, and all OAuth credentials to the Vercel project settings. Confirm the `rendered_clips` bucket and storage policies were created by the latest migration.
+7. Add `TOKEN_ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and all OAuth credentials to the Vercel project settings. Confirm the `rendered_clips` bucket and storage policies were created by the latest migration.
 8. Add the production OAuth callback URLs in the TikTok and Google developer consoles.
+9. Enable `pg_cron` and `pg_net` in Supabase and run `supabase/sql/schedule_publish_cron.sql` after deployment. This replaces Vercel Cron, which is not used by this project.
 
 ## Authentication
 
@@ -180,7 +181,7 @@ supabase db push
 - Admin metrics are exposed through security-definer database functions that verify admin access.
 - Plan limits are enforced server-side when the dashboard loads and again in the UI.
 - OAuth tokens are encrypted with AES-256-GCM and are never exposed through browser-readable database grants.
-- Scheduled publishing runs only through the service-role cron route, optionally protected by `CRON_SECRET`.
+- Scheduled publishing runs through the Supabase `pg_cron` job, which authenticates to `/api/cron/publish` with a Vault-stored service-role key. `CRON_SECRET` can protect manual triggers.
 
 ## Project Structure
 

@@ -27,12 +27,22 @@ function accountFrom(
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-export async function GET(request: Request) {
+function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
-  if (
-    cronSecret &&
-    request.headers.get("authorization") !== `Bearer ${cronSecret}`
-  ) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const authorization = request.headers.get("authorization");
+  const apiKey = request.headers.get("apikey");
+
+  const validCronSecret =
+    Boolean(cronSecret) && authorization === `Bearer ${cronSecret}`;
+  const validServiceKey =
+    Boolean(serviceRoleKey) && apiKey === serviceRoleKey;
+
+  return validCronSecret || validServiceKey;
+}
+
+async function handlePublish(request: Request) {
+  if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -109,4 +119,12 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ processed: posts.length, published, failed });
+}
+
+export async function GET(request: Request) {
+  return handlePublish(request);
+}
+
+export async function POST(request: Request) {
+  return handlePublish(request);
 }
