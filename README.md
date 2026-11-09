@@ -116,7 +116,7 @@ npm run start   # Run the production build
    https://your-domain.com/auth/callback
    ```
 
-   Also update the **Site URL** to your production domain. Without this step, magic-link sign-in will fail or redirect to the wrong host.
+   Also update the **Site URL** to your production domain.
 
 6. Run `supabase db push` against the production Supabase project if migrations have not already been applied.
 7. Add `TOKEN_ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and all OAuth credentials to the Vercel project settings. Confirm the `rendered_clips` bucket and storage policies were created by the latest migration.
@@ -125,13 +125,9 @@ npm run start   # Run the production build
 
 ## Authentication
 
-Clippboard uses Supabase magic links. After a user requests a sign-in link, Supabase redirects through:
+Clippboard uses Supabase email OTP codes. After a user enters their email, Supabase sends a 6-digit code and the login form verifies it with `verifyOtp`, then redirects to `/dashboard`.
 
-```text
-/auth/callback?code=...
-```
-
-The callback exchanges the code for a session and sends the user to `/dashboard`. The callback route is relative to the current origin, so no application URL needs to be hardcoded.
+Make sure the Supabase **Magic Link** email template includes `{{ .Token }}` so the 6-digit code is visible in the email. The `/auth/callback` route remains available for OAuth and legacy flows.
 
 ## Subscription Plans
 
