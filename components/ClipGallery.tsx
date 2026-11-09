@@ -19,6 +19,7 @@ export function ClipGallery({
   onSchedule,
   transcript,
   plan,
+  userId,
 }: {
   clips: Clip[];
   progressById: Record<string, number>;
@@ -26,6 +27,7 @@ export function ClipGallery({
   onSchedule?: (clip: Clip, payload: PublishPayload) => void;
   transcript?: TranscriptSegment[];
   plan: Plan;
+  userId: string;
 }) {
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const completedClips = clips.filter(
@@ -93,6 +95,7 @@ export function ClipGallery({
               onSchedule={onSchedule}
               transcript={transcript}
               plan={plan}
+              userId={userId}
             />
           </li>
         ))}

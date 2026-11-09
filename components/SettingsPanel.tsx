@@ -4,24 +4,41 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   Check,
   CreditCard,
+  Instagram,
+  Link2,
   Loader2,
+  Music2,
   Save,
   SlidersHorizontal,
   UserRound,
+  Youtube,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Plan } from "@/lib/plans";
+import {
+  SOCIAL_PLATFORMS,
+  loadConnectedAccounts,
+  saveConnectedAccounts,
+  type SocialPlatformId,
+} from "@/lib/social-accounts";
 
-type Tab = "profile" | "billing" | "preferences";
+type Tab = "profile" | "billing" | "integrations" | "preferences";
 
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "billing", label: "Billing", icon: CreditCard },
+  { id: "integrations", label: "Integrations", icon: Link2 },
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
 ];
+
+const PLATFORM_ICONS: Record<SocialPlatformId, LucideIcon> = {
+  tiktok: Music2,
+  youtube: Youtube,
+  instagram: Instagram,
+};
 
 const PLAN_LABELS: Record<Plan, string> = {
   starter: "Starter",
@@ -96,8 +113,13 @@ export function SettingsPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [autoDownload, setAutoDownload] = useState(false);
+  const [connectedAccounts, setConnectedAccounts] = useState<SocialPlatformId[]>(
+    []
+  );
 
   useEffect(() => {
+    setConnectedAccounts(loadConnectedAccounts(userId));
+
     try {
       const raw = window.localStorage.getItem(
         `clippboard:preferences:${userId}`
@@ -141,6 +163,25 @@ export function SettingsPanel({
       });
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  function toggleIntegration(id: SocialPlatformId, label: string) {
+    const isConnected = connectedAccounts.includes(id);
+    const next = isConnected
+      ? connectedAccounts.filter((account) => account !== id)
+      : [...connectedAccounts, id];
+
+    try {
+      saveConnectedAccounts(userId, next);
+      setConnectedAccounts(next);
+      toast.success(
+        isConnected ? `${label} disconnected` : `${label} connected`
+      );
+    } catch {
+      toast.error("Could not update connected accounts", {
+        description: "Check your browser storage settings and try again.",
+      });
     }
   }
 
@@ -313,6 +354,66 @@ export function SettingsPanel({
             >
               Manage Subscription
             </a>
+          </section>
+        )}
+
+        {tab === "integrations" && (
+          <section className="flex flex-col gap-5 rounded-3 border border-border-gray bg-white p-6 sm:p-8">
+            <div>
+              <h2 className="text-[24px] font-bold leading-[1.25]">
+                Connected Accounts
+              </h2>
+              <p className="mt-1 text-[14px] text-soft-black/60">
+                Connect the social platforms you publish clips to.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {SOCIAL_PLATFORMS.map((platform) => {
+                const Icon = PLATFORM_ICONS[platform.id];
+                const connected = connectedAccounts.includes(platform.id);
+
+                return (
+                  <div
+                    key={platform.id}
+                    className="flex flex-wrap items-center justify-between gap-4 rounded-2 border border-gray-200 bg-white p-6"
+                  >
+                    <div className="flex min-w-0 items-center gap-4">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-warm-white text-soft-black">
+                        <Icon className="h-5 w-5" aria-hidden />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[16px] font-semibold text-soft-black">
+                          {platform.label}
+                        </p>
+                        <p className="mt-1 text-[13px] text-soft-black/55">
+                          {platform.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {connected && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+                          Connected
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleIntegration(platform.id, platform.label)}
+                        className={cn(
+                          "inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                          focusRing
+                        )}
+                      >
+                        {connected ? "Disconnect" : "Connect"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </section>
         )}
 

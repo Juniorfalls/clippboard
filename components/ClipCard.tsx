@@ -201,6 +201,7 @@ export function ClipCard({
   onSchedule,
   transcript,
   plan,
+  userId,
 }: {
   clip: Clip;
   index: number;
@@ -209,6 +210,7 @@ export function ClipCard({
   onSchedule?: (clip: Clip, payload: PublishPayload) => void;
   transcript?: TranscriptSegment[];
   plan: Plan;
+  userId: string;
 }) {
   const [isTrimOpen, setIsTrimOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
@@ -434,6 +436,7 @@ export function ClipCard({
       {onSchedule && (
         <PublishModal
           clip={clip}
+          userId={userId}
           open={isPublishOpen}
           onOpenChange={setIsPublishOpen}
           onScheduled={onSchedule}

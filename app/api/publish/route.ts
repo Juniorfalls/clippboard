@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const ALLOWED_PLATFORMS = new Set(["tiktok", "youtube"]);
+const ALLOWED_PLATFORMS = new Set(["tiktok", "youtube", "instagram"]);
 
 type PublishBody = {
   clipId?: unknown;

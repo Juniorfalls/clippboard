@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   CalendarDays,
@@ -8,6 +9,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Instagram,
+  Link2,
   Music2,
   Send,
   X,
@@ -16,19 +19,21 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  SOCIAL_PLATFORMS,
+  loadConnectedAccounts,
+  type SocialPlatformId,
+} from "@/lib/social-accounts";
 import type { Clip } from "@/types/video";
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-const PLATFORMS: {
-  id: "tiktok" | "youtube";
-  label: string;
-  icon: LucideIcon;
-}[] = [
-  { id: "tiktok", label: "TikTok", icon: Music2 },
-  { id: "youtube", label: "YouTube Shorts", icon: Youtube },
-];
+const PLATFORM_ICONS: Record<SocialPlatformId, LucideIcon> = {
+  tiktok: Music2,
+  youtube: Youtube,
+  instagram: Instagram,
+};
 
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
@@ -61,6 +66,7 @@ export type PublishPayload = {
 
 type PublishModalProps = {
   clip: Clip;
+  userId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onScheduled: (clip: Clip, payload: PublishPayload) => void;
@@ -68,6 +74,7 @@ type PublishModalProps = {
 
 export function PublishModal({
   clip,
+  userId,
   open,
   onOpenChange,
   onScheduled,
@@ -80,6 +87,9 @@ export function PublishModal({
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
   );
   const [platforms, setPlatforms] = useState<Set<string>>(new Set());
+  const [connectedAccounts, setConnectedAccounts] = useState<SocialPlatformId[]>(
+    []
+  );
   const [timeError, setTimeError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -95,8 +105,9 @@ export function PublishModal({
     );
     setVisibleMonth(new Date(next.getFullYear(), next.getMonth(), 1));
     setPlatforms(new Set());
+    setConnectedAccounts(loadConnectedAccounts(userId));
     setTimeError("");
-  }, [open]);
+  }, [open, userId]);
 
   const calendarCells = useMemo(() => {
     const year = visibleMonth.getFullYear();
@@ -148,9 +159,16 @@ export function PublishModal({
   }
 
   async function handleSchedule() {
+    if (connectedAccounts.length === 0) {
+      toast.error("No accounts connected", {
+        description: "Go to Settings to connect a social platform first.",
+      });
+      return;
+    }
+
     if (platforms.size === 0) {
       toast.error("Choose a destination", {
-        description: "Select TikTok or YouTube before scheduling.",
+        description: "Select a connected platform before scheduling.",
       });
       return;
     }
@@ -189,18 +207,21 @@ export function PublishModal({
         throw new Error("The scheduling service did not accept this post.");
       }
 
+      const platformLabels = Array.from(platforms)
+        .map(
+          (id) =>
+            SOCIAL_PLATFORMS.find((platform) => platform.id === id)?.label
+        )
+        .filter(Boolean)
+        .join(", ");
+
       onScheduled(clip, {
         scheduledFor: scheduledDate.toISOString(),
         platforms: Array.from(platforms),
       });
-      toast.success("Post scheduled", {
-        description: `${formatSchedule(scheduledDate)} · ${Array.from(
-          platforms
-        )
-          .map((id) => PLATFORMS.find((platform) => platform.id === id)?.label)
-          .filter(Boolean)
-          .join(", ")}`,
-      });
+      toast.success(
+        `Scheduled for ${formatSchedule(scheduledDate)} on ${platformLabels}`
+      );
       onOpenChange(false);
     } catch (error) {
       toast.error("Could not schedule post", {
@@ -230,7 +251,7 @@ export function PublishModal({
                 Publish clip
               </span>
               <Dialog.Title className="text-[24px] font-bold leading-[1.25]">
-                Schedule your post
+                Publish Clip
               </Dialog.Title>
               <Dialog.Description className="line-clamp-1 text-[14px] text-soft-black/60">
                 {clip.title}
@@ -254,46 +275,71 @@ export function PublishModal({
             <span className="text-[14px] font-semibold text-soft-black">
               Publish to
             </span>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {PLATFORMS.map(({ id, label, icon: Icon }) => {
-                const active = platforms.has(id);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => togglePlatform(id)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-2 border px-4 py-3 text-left duration-200",
-                      active
-                        ? "border-brand-blue bg-brand-blue-light text-soft-black"
-                        : "border-border-gray bg-white text-soft-black hover:bg-warm-white",
-                      focusRing
-                    )}
-                  >
-                    <span
+
+            {connectedAccounts.length === 0 ? (
+              <div className="flex flex-col items-start gap-3 rounded-2 border border-dashed border-border-gray bg-warm-white p-5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-brand-blue">
+                  <Link2 className="h-5 w-5" aria-hidden />
+                </span>
+                <p className="text-[14px] text-soft-black/65">
+                  No accounts connected. Go to Settings to connect your socials.
+                </p>
+                <Link
+                  href="/dashboard/settings"
+                  onClick={() => onOpenChange(false)}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-4 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                    focusRing
+                  )}
+                >
+                  Go to Settings
+                </Link>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {SOCIAL_PLATFORMS.filter((platform) =>
+                  connectedAccounts.includes(platform.id)
+                ).map(({ id, label }) => {
+                  const Icon = PLATFORM_ICONS[id];
+                  const active = platforms.has(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => togglePlatform(id)}
                       className={cn(
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                        "flex items-center gap-3 rounded-2 border px-4 py-3 text-left duration-200",
                         active
-                          ? "bg-brand-blue text-soft-black"
-                          : "bg-warm-white text-soft-black/70"
+                          ? "border-brand-blue bg-brand-blue-light text-soft-black"
+                          : "border-border-gray bg-white text-soft-black hover:bg-warm-white",
+                        focusRing
                       )}
                     >
-                      <Icon className="h-5 w-5" aria-hidden />
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-[14px] font-semibold">{label}</span>
-                      <span className="text-[12px] text-soft-black/50">
-                        {active ? "Selected for publishing" : "Tap to connect"}
+                      <span
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                          active
+                            ? "bg-brand-blue text-soft-black"
+                            : "bg-warm-white text-soft-black/70"
+                        )}
+                      >
+                        <Icon className="h-5 w-5" aria-hidden />
                       </span>
-                    </span>
-                    {active && (
-                      <Check className="h-4 w-4 shrink-0 text-brand-blue" aria-hidden />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[14px] font-semibold">{label}</span>
+                        <span className="text-[12px] text-soft-black/50">
+                          {active ? "Selected for publishing" : "Ready to publish"}
+                        </span>
+                      </span>
+                      {active && (
+                        <Check className="h-4 w-4 shrink-0 text-brand-blue" aria-hidden />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="mt-6 grid gap-5 md:grid-cols-[1fr_220px]">
@@ -453,7 +499,7 @@ export function PublishModal({
               )}
             >
               <Send className="h-4 w-4" aria-hidden />
-              {isSubmitting ? "Scheduling..." : "Schedule post"}
+              {isSubmitting ? "Scheduling..." : "Schedule Post"}
             </button>
           </div>
         </Dialog.Content>

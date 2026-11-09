@@ -679,6 +679,7 @@ export function WorkspaceDashboard({
             onSchedule={handleScheduleClip}
             transcript={transcript}
             plan={plan}
+            userId={userId}
           />
         ) : (
           <div className="relative flex flex-col items-center overflow-hidden rounded-3 border border-dashed border-border-gray bg-white px-6 py-16 text-center">
