@@ -14,6 +14,10 @@ import {
   SERVER_AUDIO_CHUNK_SECONDS,
 } from "@/lib/audio/server-chunks";
 import { createAdminClient } from "@/utils/supabase/admin";
+import {
+  videoProcessingChannel,
+  type VideoProcessingUpdate,
+} from "@/lib/inngest/realtime";
 import type { TranscriptSegment } from "@/types/video";
 
 type VideoProcessEvent = {
@@ -35,6 +39,20 @@ function openaiClient() {
     apiKey,
     baseURL: process.env.OPENAI_BASE_URL,
   });
+}
+
+async function publishUpdate(
+  jobId: string,
+  update: Omit<VideoProcessingUpdate, "jobId">
+) {
+  try {
+    await inngest.realtime.publish(videoProcessingChannel(jobId).status, {
+      ...update,
+      jobId,
+    });
+  } catch (error) {
+    console.error("[inngest] Could not publish realtime update", error);
+  }
 }
 
 export const processVideo = inngest.createFunction(
@@ -60,6 +78,11 @@ export const processVideo = inngest.createFunction(
           .eq("id", jobId);
 
         if (error) throw error;
+      });
+
+      await publishUpdate(jobId, {
+        stage: "failed",
+        message: "Processing failed. Please try again.",
       });
     },
   },
@@ -94,6 +117,11 @@ export const processVideo = inngest.createFunction(
       );
 
       if (error) throw error;
+    });
+
+    await publishUpdate(jobId, {
+      stage: "uploading",
+      message: "Uploading video...",
     });
 
     const audioChunks = await step.run("download-and-chunk-audio", async () => {
@@ -131,6 +159,14 @@ export const processVideo = inngest.createFunction(
     const transcriptSegments: TranscriptSegment[] = [];
 
     for (const chunk of audioChunks) {
+      await publishUpdate(jobId, {
+        stage: "transcribing",
+        message: `Transcribing chunk ${chunk.index + 1} of ${audioChunks.length}...`,
+        chunk: chunk.index + 1,
+        totalChunks: audioChunks.length,
+        progress: Math.round((chunk.index / audioChunks.length) * 100),
+      });
+
       const segments = await step.run(
         `transcribe-chunk-${chunk.index + 1}`,
         async () => {
@@ -169,6 +205,12 @@ export const processVideo = inngest.createFunction(
         "No speech was detected in this video. Try a video with narration."
       );
     }
+
+    await publishUpdate(jobId, {
+      stage: "analyzing",
+      message: "Analyzing transcript...",
+      progress: 80,
+    });
 
     const clips = await step.run("find-clips", async () => {
       const apiKey = process.env.OPENAI_API_KEY;
@@ -230,6 +272,12 @@ export const processVideo = inngest.createFunction(
         .eq("id", jobId);
 
       if (error) throw error;
+    });
+
+    await publishUpdate(jobId, {
+      stage: "complete",
+      message: "Complete!",
+      progress: 100,
     });
 
     return { jobId, clipCount: clips.length };

@@ -3,6 +3,7 @@
 import { upload } from "@vercel/blob/client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRealtime } from "inngest/react";
 import { Captions, Clapperboard, FolderOpen, Loader2, Lock, ScanFace, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
@@ -14,6 +15,10 @@ import { ClipGallery } from "@/components/ClipGallery";
 import type { PublishPayload } from "@/components/PublishModal";
 import { getVideoProcessor } from "@/services/video";
 import { loadBrandKit, type BrandTemplate } from "@/lib/brand-kit";
+import {
+  videoProcessingChannel,
+  type VideoProcessingUpdate,
+} from "@/lib/inngest/realtime";
 import { STARTER_CLIP_LIMIT, type Plan } from "@/lib/plans";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
@@ -117,6 +122,7 @@ export function WorkspaceDashboard({
   const [templates, setTemplates] = useState<BrandTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("none");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<string | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [progressById, setProgressById] = useState<Record<string, number>>({});
@@ -126,6 +132,33 @@ export function WorkspaceDashboard({
   const [clipsThisMonth, setClipsThisMonth] = useState(initialClipsThisMonth);
   const hasShownClipPersistError = useRef(false);
   const uploadAbortRef = useRef<AbortController | null>(null);
+  const completedJobRef = useRef<string | null>(null);
+
+  const realtime = useRealtime({
+    channel: videoProcessingChannel(activeJobId ?? "idle"),
+    topics: ["status"],
+    enabled: Boolean(activeJobId),
+    token: async () => {
+      if (!activeJobId) {
+        throw new Error("No active video-processing job.");
+      }
+
+      const response = await fetch("/api/inngest/realtime-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: activeJobId }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { key?: string; apiBaseUrl?: string; error?: string }
+        | null;
+
+      if (!response.ok || !data?.key) {
+        throw new Error(data?.error ?? "Could not subscribe to job updates.");
+      }
+
+      return { key: data.key, apiBaseUrl: data.apiBaseUrl };
+    },
+  });
 
   const starterLimitReached =
     plan === "starter" && clipsThisMonth >= STARTER_CLIP_LIMIT;
@@ -203,6 +236,83 @@ export function WorkspaceDashboard({
       uploadAbortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (!activeJobId) return;
+
+    const lastMessage = realtime.messages.last;
+    if (!lastMessage || lastMessage.kind !== "data") return;
+
+    const update = lastMessage.data as VideoProcessingUpdate | null;
+    if (!update || update.jobId !== activeJobId) return;
+
+    if (update.stage === "failed") {
+      completedJobRef.current = activeJobId;
+      setAnalysisStatus(update.message);
+      setIsProcessing(false);
+      setActiveJobId(null);
+      toast.dismiss("analysis-status");
+      toast.error("Video processing failed", {
+        description: update.message,
+      });
+      return;
+    }
+
+    if (update.stage === "complete") {
+      startFinishJob(activeJobId);
+      return;
+    }
+
+    setAnalysisStatus(update.message);
+    toast.loading(update.message, {
+      id: "analysis-status",
+      description:
+        update.stage === "transcribing" &&
+        update.chunk &&
+        update.totalChunks
+          ? `Chunk ${update.chunk} of ${update.totalChunks}`
+          : "Processing in the background.",
+    });
+  }, [activeJobId, realtime.messages.last]);
+
+  useEffect(() => {
+    if (!activeJobId || realtime.connectionStatus !== "open") return;
+
+    const jobId = activeJobId;
+    let cancelled = false;
+
+    async function reconcileJobStatus() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("video_jobs")
+        .select("status, error")
+        .eq("id", jobId)
+        .maybeSingle();
+
+      if (cancelled || !data) return;
+
+      if (data.status === "completed") {
+        startFinishJob(jobId);
+        return;
+      }
+
+      if (data.status === "failed") {
+        completedJobRef.current = jobId;
+        setAnalysisStatus("Processing failed. Please try again.");
+        setIsProcessing(false);
+        setActiveJobId(null);
+        toast.dismiss("analysis-status");
+        toast.error("Video processing failed", {
+          description: data.error ?? "Please try again.",
+        });
+      }
+    }
+
+    void reconcileJobStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeJobId, realtime.connectionStatus]);
 
   async function handleFileChange(file: File | null) {
     uploadAbortRef.current?.abort();
@@ -352,6 +462,12 @@ export function WorkspaceDashboard({
     }
   }
 
+  function startFinishJob(jobId: string) {
+    if (completedJobRef.current === jobId) return;
+    completedJobRef.current = jobId;
+    void finishRealtimeJob(jobId);
+  }
+
   async function handleGenerate() {
     if (starterLimitReached) {
       toast.error("Starter limit reached. Please upgrade.", {
@@ -375,6 +491,8 @@ export function WorkspaceDashboard({
     }
 
     setIsProcessing(true);
+    setActiveJobId(null);
+    completedJobRef.current = null;
     setClips([]);
     setProgressById({});
     setAnalysisStatus("Queueing background processing...");
@@ -423,39 +541,55 @@ export function WorkspaceDashboard({
         throw new Error("The analysis service did not return a job ID.");
       }
 
+      setActiveJobId(queued.jobId);
       setAnalysisStatus("Processing video in the background...");
       toast.loading("Processing video...", {
         id: statusToastId,
-        description: "Transcribing and finding the best moments.",
+        description: "Waiting for the first live update.",
+      });
+    } catch (error) {
+      toast.dismiss(statusToastId);
+      toast.error("Could not queue video processing", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+      setIsProcessing(false);
+      setAnalysisStatus(null);
+      setActiveJobId(null);
+    }
+  }
+
+  async function finishRealtimeJob(jobId: string) {
+    const statusToastId = "analysis-status";
+    const sourceFile = uploadedFile;
+
+    try {
+      if (!sourceFile) {
+        throw new Error("The source video is no longer available.");
+      }
+
+      setAnalysisStatus("Preparing clips...");
+      toast.loading("Preparing clips...", {
+        id: statusToastId,
+        description: "Loading the completed analysis.",
       });
 
       const supabase = createClient();
-      const maxAttempts = 360;
-      let job: VideoJobRow | null = null;
+      const { data: jobData, error: jobError } = await supabase
+        .from("video_jobs")
+        .select("status, error, transcript")
+        .eq("id", jobId)
+        .maybeSingle();
 
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        const { data, error } = await supabase
-          .from("video_jobs")
-          .select("status, error, transcript")
-          .eq("id", queued.jobId)
-          .maybeSingle();
+      if (jobError) throw jobError;
 
-        if (error) throw error;
-        job = data as VideoJobRow | null;
-
-        if (job?.status === "failed") {
-          throw new Error(job.error ?? "Video processing failed.");
-        }
-
-        if (job?.status === "completed") break;
-
-        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      const job = jobData as VideoJobRow | null;
+      if (job?.status === "failed") {
+        throw new Error(job.error ?? "Video processing failed.");
       }
 
       if (job?.status !== "completed") {
-        throw new Error(
-          "Video processing is taking longer than expected. Try a shorter video."
-        );
+        throw new Error("Video processing has not completed yet.");
       }
 
       const { data: clipRows, error: clipsError } = await supabase
@@ -463,7 +597,7 @@ export function WorkspaceDashboard({
         .select(
           "id, title, duration, engagement_score, start_time, end_time, hook_text, virality_reason, metadata"
         )
-        .eq("job_id", queued.jobId)
+        .eq("job_id", jobId)
         .order("engagement_score", { ascending: false });
 
       if (clipsError) throw clipsError;
@@ -497,19 +631,21 @@ export function WorkspaceDashboard({
       setAnalysisStatus("Rendering clips...");
       setClips(analysis.clips);
       setTranscript(analysis.transcript);
-      toast.dismiss(statusToastId);
+      toast.loading("Rendering clips...", {
+        id: statusToastId,
+        description: `${analysis.clips.length} clips ready. Rendering in your browser.`,
+      });
 
       if (activeTeamId) {
         try {
-          const supabase = createClient();
-          const projectTitle = uploadedFile.name.replace(/\.[^.]+$/, "");
+          const projectTitle = sourceFile.name.replace(/\.[^.]+$/, "");
           const { data: project, error: projectError } = await supabase
             .from("projects")
             .insert({
               team_id: activeTeamId,
               user_id: userId,
               title: projectTitle,
-              source_name: uploadedFile.name,
+              source_name: sourceFile.name,
               clip_count: analysis.clips.length,
             })
             .select("id, title, source_name, clip_count, created_at")
@@ -560,7 +696,7 @@ export function WorkspaceDashboard({
 
         try {
           const url = await processor.processClip(
-            uploadedFile,
+            sourceFile,
             clip,
             options,
             (progress) => {
@@ -605,13 +741,14 @@ export function WorkspaceDashboard({
         });
       }
     } catch (error) {
-      toast.dismiss(statusToastId);
-      toast.error("Could not generate clips", {
-        description: error instanceof Error ? error.message : "Try again in a moment.",
+      toast.error("Could not load generated clips", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
       });
     } finally {
       setIsProcessing(false);
       setAnalysisStatus(null);
+      setActiveJobId(null);
       toast.dismiss(statusToastId);
     }
   }
