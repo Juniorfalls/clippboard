@@ -34,7 +34,7 @@ function emptyCode() {
   return Array.from({ length: OTP_LENGTH }, () => "");
 }
 
-export function LoginForm() {
+export function LoginForm({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
@@ -226,7 +226,11 @@ export function LoginForm() {
       if (authError) throw authError;
 
       toast.success("Signed in");
-      router.replace("/dashboard");
+      const destination =
+        nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")
+          ? nextPath
+          : "/dashboard";
+      router.replace(destination);
       router.refresh();
     } catch (authError) {
       const message =

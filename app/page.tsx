@@ -10,6 +10,8 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { CheckoutButton } from "@/components/CheckoutButton";
+import { CheckoutResume } from "@/components/CheckoutResume";
 import { Logo, LogoMark } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { SITE_URL } from "@/lib/site";
@@ -265,7 +267,17 @@ function HeroMockup() {
   );
 }
 
-const PRICING_TIERS = [
+const PRICING_TIERS: Array<{
+  name: string;
+  price: string;
+  cadence: string;
+  description: string;
+  features: string[];
+  cta: string;
+  href: string;
+  highlighted: boolean;
+  plan?: "pro" | "agency";
+}> = [
   {
     name: "Starter",
     price: "$0",
@@ -291,6 +303,7 @@ const PRICING_TIERS = [
     cta: "Start 7-Day Free Trial",
     href: "/login",
     highlighted: true,
+    plan: "pro",
   },
   {
     name: "Agency",
@@ -306,6 +319,7 @@ const PRICING_TIERS = [
     cta: "Contact Sales",
     href: "/login",
     highlighted: false,
+    plan: "agency",
   },
 ];
 
@@ -345,9 +359,27 @@ function SocialIcon({
   );
 }
 
-export default function HomePage() {
+export default function HomePage({
+  searchParams,
+}: {
+  searchParams?: { checkout?: string };
+}) {
+  const checkoutPlan =
+    searchParams?.checkout === "agency"
+      ? "agency"
+      : searchParams?.checkout === "pro"
+        ? "pro"
+        : undefined;
+  const checkoutPriceId =
+    checkoutPlan === "agency"
+      ? process.env.STRIPE_PRICE_AGENCY
+      : checkoutPlan === "pro"
+        ? process.env.STRIPE_PRICE_PRO
+        : undefined;
+
   return (
     <div className="min-h-screen bg-warm-white text-soft-black">
+      <CheckoutResume plan={checkoutPlan} priceId={checkoutPriceId} />
       <header className="sticky top-0 z-40 border-b border-border-gray/70 bg-warm-white/90 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-4 py-4">
           <Link
@@ -583,18 +615,38 @@ export default function HomePage() {
                         </li>
                       ))}
                     </ul>
-                    <Link
-                      href={tier.href}
-                      className={cn(
-                        "mt-8 inline-flex items-center justify-center rounded-2 px-5 py-3 text-[14px] font-semibold duration-200",
-                        tier.highlighted
-                          ? "bg-brand-blue text-soft-black hover:bg-brand-blue-hover"
-                          : "border border-border-gray bg-white text-soft-black hover:bg-warm-white",
-                        focusRing
-                      )}
-                    >
-                      {tier.cta}
-                    </Link>
+                    {tier.plan ? (
+                      <CheckoutButton
+                        plan={tier.plan}
+                        priceId={
+                          tier.plan === "pro"
+                            ? process.env.STRIPE_PRICE_PRO
+                            : process.env.STRIPE_PRICE_AGENCY
+                        }
+                        className={cn(
+                          "mt-8 inline-flex items-center justify-center rounded-2 px-5 py-3 text-[14px] font-semibold duration-200",
+                          tier.highlighted
+                            ? "bg-brand-blue text-soft-black hover:bg-brand-blue-hover"
+                            : "border border-border-gray bg-white text-soft-black hover:bg-warm-white",
+                          focusRing
+                        )}
+                      >
+                        {tier.cta}
+                      </CheckoutButton>
+                    ) : (
+                      <Link
+                        href={tier.href}
+                        className={cn(
+                          "mt-8 inline-flex items-center justify-center rounded-2 px-5 py-3 text-[14px] font-semibold duration-200",
+                          tier.highlighted
+                            ? "bg-brand-blue text-soft-black hover:bg-brand-blue-hover"
+                            : "border border-border-gray bg-white text-soft-black hover:bg-warm-white",
+                          focusRing
+                        )}
+                      >
+                        {tier.cta}
+                      </Link>
+                    )}
                   </article>
                 );
 

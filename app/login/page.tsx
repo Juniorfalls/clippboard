@@ -23,6 +23,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default function LoginPage() {
-  return <LoginForm />;
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams?: { next?: string };
+}) {
+  const nextPath =
+    typeof searchParams?.next === "string" &&
+    searchParams.next.startsWith("/") &&
+    !searchParams.next.startsWith("//")
+      ? searchParams.next
+      : undefined;
+
+  return <LoginForm nextPath={nextPath} />;
 }
