@@ -1,7 +1,9 @@
-import { Webhook } from "npm:standardwebhooks";
-import { Resend } from "npm:resend";
-import { render } from "npm:@react-email/render";
-import MagicLinkEmail from "./_templates/magic-link.tsx";
+import { renderAsync } from "npm:@react-email/components@^1";
+import { withSupabase } from "npm:@supabase/server@^1";
+import React from "npm:react@^19";
+import { Resend } from "npm:resend@^6";
+import { Webhook } from "npm:standardwebhooks@^1";
+import { MagicLinkEmail } from "./_templates/magic-link.tsx";
 
 type SupabaseSendEmailHookPayload = {
   user?: {
@@ -16,93 +18,75 @@ type SupabaseSendEmailHookPayload = {
   };
 };
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
+type EdgeFunctionError = Error & {
+  code?: number;
+};
 
-const errorResponse = (httpCode: number, message: string) =>
-  json({ error: { http_code: httpCode, message } }, httpCode);
+const resendApiKey = Deno.env.get("RESEND_API_KEY") ?? "";
+const hookSecret = (Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "").replace(
+  /^v1,whsec_/,
+  ""
+);
 
-Deno.serve(async (request) => {
-  if (request.method !== "POST") {
-    return errorResponse(405, "Method not allowed.");
-  }
+export default {
+  fetch: withSupabase({ auth: "none" }, async (req) => {
+    try {
+      if (req.method !== "POST") {
+        return Response.json({ error: "not allowed" }, { status: 400 });
+      }
 
-  const resendApiKey = Deno.env.get("RESEND_API_KEY");
-  const rawHookSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET");
+      if (!resendApiKey || !hookSecret) {
+        throw Object.assign(
+          new Error(
+            "RESEND_API_KEY or SEND_EMAIL_HOOK_SECRET is not configured."
+          ),
+          { code: 500 }
+        );
+      }
 
-  if (!resendApiKey || !rawHookSecret) {
-    return errorResponse(500, "Email hook secrets are not configured.");
-  }
+      const payload = await req.text();
+      const headers = Object.fromEntries(req.headers);
+      const wh = new Webhook(hookSecret);
+      const { user, email_data } = wh.verify(
+        payload,
+        headers
+      ) as SupabaseSendEmailHookPayload;
+      const email = user?.email;
+      const token = email_data?.token;
 
-  const hookSecret = rawHookSecret
-    .replace(/^v1,/, "")
-    .replace(/^whsec_/, "");
-  const payload = await request.text();
-  const webhookHeaders = {
-    "webhook-id": request.headers.get("webhook-id") ?? "",
-    "webhook-timestamp": request.headers.get("webhook-timestamp") ?? "",
-    "webhook-signature": request.headers.get("webhook-signature") ?? "",
-  };
+      if (!email || !token) {
+        throw Object.assign(
+          new Error("The auth hook payload is missing an email or token."),
+          { code: 400 }
+        );
+      }
 
-  if (
-    !webhookHeaders["webhook-id"] ||
-    !webhookHeaders["webhook-timestamp"] ||
-    !webhookHeaders["webhook-signature"]
-  ) {
-    console.error(
-      "[send-email] Missing webhook-id, webhook-timestamp, or webhook-signature."
-    );
-    return errorResponse(401, "Missing webhook signature headers.");
-  }
+      const resend = new Resend(resendApiKey);
+      const html = await renderAsync(MagicLinkEmail({ token }));
+      const { error } = await resend.emails.send({
+        from: "onboarding@resend.dev",
+        to: [email],
+        subject: "Your Clippboard login code",
+        html,
+      });
 
-  let hookData: SupabaseSendEmailHookPayload;
+      if (error) {
+        throw Object.assign(new Error(error.message), { code: 502 });
+      }
 
-  try {
-    const webhook = new Webhook(hookSecret);
-    hookData = webhook.verify(
-      payload,
-      webhookHeaders
-    ) as SupabaseSendEmailHookPayload;
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : String(error);
-    console.error("[send-email] Webhook verification failed:", message);
-    return errorResponse(401, `Invalid webhook signature: ${message}`);
-  }
-
-  const email = hookData.user?.email;
-  const token = hookData.email_data?.token;
-
-  if (!email || !token) {
-    return errorResponse(
-      400,
-      "The auth hook payload is missing an email or token."
-    );
-  }
-
-  try {
-    const resend = new Resend(resendApiKey);
-    const html = await render(MagicLinkEmail({ token }));
-
-    const { error } = await resend.emails.send({
-      from: "onboarding@resend.dev",
-      to: [email],
-      subject: "Your Clippboard login code",
-      html,
-    });
-
-    if (error) {
-      return errorResponse(502, error.message);
+      return Response.json({});
+    } catch (error) {
+      console.error("Edge Function Error:", error);
+      const edgeError = error as EdgeFunctionError;
+      return Response.json(
+        {
+          error: {
+            http_code: edgeError.code ?? 500,
+            message: edgeError.message ?? String(error),
+          },
+        },
+        { status: 401 }
+      );
     }
-
-    return json({});
-  } catch (error) {
-    return errorResponse(
-      500,
-      error instanceof Error ? error.message : "Could not send the login code."
-    );
-  }
-});
+  }),
+};

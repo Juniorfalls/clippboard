@@ -1,4 +1,4 @@
-import * as React from "npm:react@18.2.0";
+import React from "npm:react@^19";
 import {
   Body,
   Container,
@@ -14,7 +14,7 @@ type MagicLinkEmailProps = {
   token: string;
 };
 
-export default function MagicLinkEmail({ token }: MagicLinkEmailProps) {
+export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
   return (
     <Html>
       <Head />
