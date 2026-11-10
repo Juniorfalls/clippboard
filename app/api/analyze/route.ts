@@ -11,6 +11,7 @@ export const maxDuration = 60;
 
 const MAX_PROMPT_LENGTH = 500;
 const MAX_AUDIO_SIZE = 24 * 1024 * 1024;
+const MAX_BLOB_URL_LENGTH = 2048;
 
 const BRollSchema = z.object({
   query: z.string().trim().min(1).max(120),
@@ -143,42 +144,60 @@ function roundToHundredths(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function getAudioExtension(contentType: string, pathname: string) {
+  const type = contentType.toLowerCase();
+  if (type.includes("wav")) return "wav";
+  if (type.includes("mp4") || type.includes("m4a")) return "m4a";
+  if (type.includes("webm")) return "webm";
+  if (type.includes("ogg")) return "ogg";
+  if (type.includes("flac")) return "flac";
+
+  const match = pathname.match(/\.(mp3|wav|m4a|webm|ogg|flac|mp4|mpeg|mpga)$/i);
+  return match?.[1]?.toLowerCase() ?? "mp3";
+}
+
 export async function POST(request: Request) {
-  let form: FormData;
+  let payload: unknown;
 
   try {
-    form = await request.formData();
+    payload = await request.json();
   } catch {
-    return errorResponse("Send the audio file and prompt as form data.", 400);
+    return errorResponse("Send the uploaded file URL and prompt as JSON.", 400);
   }
 
-  const audioFile = form.get("audioFile");
-  if (!(audioFile instanceof File) || audioFile.size === 0) {
-    return errorResponse("Add an extracted audio file to analyze.", 400);
+  if (typeof payload !== "object" || payload === null) {
+    return errorResponse("Send the uploaded file URL and prompt as JSON.", 400);
   }
 
-  const hasAudioExtension = /\.(mp3|wav|m4a|webm|ogg|flac|mp4|mpeg|mpga)$/i.test(
-    audioFile.name
-  );
+  const {
+    blobUrl,
+    prompt: promptValue,
+    chunkStart: chunkStartValue,
+  } = payload as {
+    blobUrl?: unknown;
+    prompt?: unknown;
+    chunkStart?: unknown;
+  };
 
-  if (!audioFile.type.startsWith("audio/") && !hasAudioExtension) {
-    return errorResponse("That file is not a supported audio file.", 400);
+  if (
+    typeof blobUrl !== "string" ||
+    blobUrl.length === 0 ||
+    blobUrl.length > MAX_BLOB_URL_LENGTH
+  ) {
+    return errorResponse("Add the uploaded file URL to analyze.", 400);
   }
 
-  if (audioFile.size > MAX_AUDIO_SIZE) {
-    return errorResponse(
-      "The extracted audio is too large for this deployment. Try a shorter video.",
-      413
-    );
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(blobUrl);
+  } catch {
+    return errorResponse("That uploaded file URL is not valid.", 400);
   }
 
-  const chunkStartValue = Number(form.get("chunkStart") ?? 0);
-  const chunkStart =
-    Number.isFinite(chunkStartValue) && chunkStartValue > 0
-      ? roundToHundredths(chunkStartValue)
-      : 0;
+  if (parsedUrl.protocol !== "https:") {
+    return errorResponse("The uploaded file URL must use HTTPS.", 400);
+  }
 
-  const promptValue = form.get("prompt");
   const prompt =
     typeof promptValue === "string" && promptValue.trim().length > 0
       ? promptValue.trim()
@@ -189,6 +208,67 @@ export async function POST(request: Request) {
       `The prompt can be up to ${MAX_PROMPT_LENGTH} characters.`,
       400
     );
+  }
+
+  const chunkStartNumber = Number(chunkStartValue ?? 0);
+  const chunkStart =
+    Number.isFinite(chunkStartNumber) && chunkStartNumber > 0
+      ? roundToHundredths(chunkStartNumber)
+      : 0;
+
+  let remoteResponse: Response;
+  try {
+    remoteResponse = await fetch(parsedUrl.toString(), {
+      cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    return errorResponse("Could not download the uploaded file.", 400);
+  }
+
+  if (!remoteResponse.ok) {
+    return errorResponse("Could not download the uploaded file.", 400);
+  }
+
+  const contentLength = Number(remoteResponse.headers.get("content-length") ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > MAX_AUDIO_SIZE) {
+    return errorResponse(
+      "The extracted audio is too large for this deployment. Try a shorter video.",
+      413
+    );
+  }
+
+  let remoteBlob: Blob;
+  try {
+    remoteBlob = await remoteResponse.blob();
+  } catch {
+    return errorResponse("Could not read the uploaded file.", 400);
+  }
+
+  if (remoteBlob.size === 0) {
+    return errorResponse("The uploaded audio file is empty.", 400);
+  }
+
+  if (remoteBlob.size > MAX_AUDIO_SIZE) {
+    return errorResponse(
+      "The extracted audio is too large for this deployment. Try a shorter video.",
+      413
+    );
+  }
+
+  const fileExtension = getAudioExtension(remoteBlob.type, parsedUrl.pathname);
+  const audioFile = new File(
+    [remoteBlob],
+    `uploaded-audio.${fileExtension}`,
+    { type: remoteBlob.type || "audio/mpeg" }
+  );
+
+  const hasAudioExtension = /\.(mp3|wav|m4a|webm|ogg|flac|mp4|mpeg|mpga)$/i.test(
+    audioFile.name
+  );
+
+  if (!audioFile.type.startsWith("audio/") && !hasAudioExtension) {
+    return errorResponse("That file is not a supported audio file.", 400);
   }
 
   const apiKey = process.env.OPENAI_API_KEY;

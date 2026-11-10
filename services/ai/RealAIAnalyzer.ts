@@ -1,3 +1,4 @@
+import { upload } from "@vercel/blob/client";
 import type { AIAnalysisResult, IAIAnalyzer } from "@/types/video";
 
 type ErrorResponse = { error?: string };
@@ -17,11 +18,16 @@ function getErrorMessage(data: unknown, fallback: string) {
   return fallback;
 }
 
+function safeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-120) || "audio.mp3";
+}
+
 export class RealAIAnalyzer implements IAIAnalyzer {
   async analyze(
     audioFile: File,
     prompt: string,
-    chunkStart = 0
+    chunkStart = 0,
+    processingOptions?: Record<string, unknown>
   ): Promise<AIAnalysisResult> {
     if (audioFile.size > MAX_AUDIO_SIZE) {
       throw new Error(
@@ -29,17 +35,36 @@ export class RealAIAnalyzer implements IAIAnalyzer {
       );
     }
 
-    const body = new FormData();
-    body.append("audioFile", audioFile);
-    body.append("prompt", prompt);
-    body.append("chunkStart", String(chunkStart));
+    let blobUrl: string;
+
+    try {
+      const blob = await upload(
+        `analysis/${Date.now()}-${safeFileName(audioFile.name)}`,
+        audioFile,
+        {
+          access: "public",
+          handleUploadUrl: "/api/upload",
+          multipart: true,
+          contentType: audioFile.type || "audio/mpeg",
+        }
+      );
+      blobUrl = blob.url;
+    } catch {
+      throw new Error("Could not upload the extracted audio for analysis.");
+    }
 
     let response: Response;
 
     try {
       response = await fetch("/api/analyze", {
         method: "POST",
-        body,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blobUrl,
+          prompt,
+          chunkStart,
+          processingOptions,
+        }),
       });
     } catch {
       throw new Error("Could not reach the analysis service. Check your connection.");

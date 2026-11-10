@@ -1,5 +1,6 @@
 "use client";
 
+import { upload } from "@vercel/blob/client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Captions, Clapperboard, FolderOpen, Loader2, Lock, ScanFace, Scissors } from "lucide-react";
@@ -87,6 +88,8 @@ export function WorkspaceDashboard({
 }) {
   const { activeTeamId, activeTeam } = useTeam();
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedBlobUrl, setUploadedBlobUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [prompt, setPrompt] = useState("Find the 10 best moments from this video.");
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [overlayText, setOverlayText] = useState("");
@@ -109,6 +112,7 @@ export function WorkspaceDashboard({
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [clipsThisMonth, setClipsThisMonth] = useState(initialClipsThisMonth);
   const hasShownClipPersistError = useRef(false);
+  const uploadAbortRef = useRef<AbortController | null>(null);
 
   const starterLimitReached =
     plan === "starter" && clipsThisMonth >= STARTER_CLIP_LIMIT;
@@ -180,6 +184,75 @@ export function WorkspaceDashboard({
       cancelled = true;
     };
   }, [activeTeamId]);
+
+  useEffect(() => {
+    return () => {
+      uploadAbortRef.current?.abort();
+    };
+  }, []);
+
+  async function handleFileChange(file: File | null) {
+    uploadAbortRef.current?.abort();
+    uploadAbortRef.current = null;
+    toast.dismiss("video-upload");
+    setUploadedFile(file);
+    setUploadedBlobUrl(null);
+
+    if (!file) {
+      setIsUploading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    uploadAbortRef.current = controller;
+    setIsUploading(true);
+
+    const toastId = "video-upload";
+    toast.loading("Uploading video securely...", {
+      id: toastId,
+      description: "Sending the original file directly to storage.",
+    });
+
+    try {
+      const safeName =
+        file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-120) || "video.mp4";
+      const blob = await upload(`videos/${userId}/${Date.now()}-${safeName}`, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload",
+        multipart: true,
+        clientPayload: JSON.stringify({ userId }),
+        abortSignal: controller.signal,
+        onUploadProgress: ({ percentage }) => {
+          toast.loading("Uploading video securely...", {
+            id: toastId,
+            description: `${Math.round(percentage)}% uploaded`,
+          });
+        },
+      });
+
+      if (controller.signal.aborted) return;
+
+      setUploadedBlobUrl(blob.url);
+      toast.success("Video uploaded", {
+        id: toastId,
+        description: "Ready to generate clips.",
+      });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+
+      setUploadedFile(null);
+      toast.error("Could not upload video", {
+        id: toastId,
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      if (uploadAbortRef.current === controller) {
+        uploadAbortRef.current = null;
+        setIsUploading(false);
+      }
+    }
+  }
 
   function updateClip(id: string, patch: Partial<Clip>) {
     setClips((previous) =>
@@ -259,6 +332,13 @@ export function WorkspaceDashboard({
       return;
     }
 
+    if (!uploadedBlobUrl) {
+      toast.error(isUploading ? "Upload still in progress" : "Upload the video first", {
+        description: "Wait for the secure upload to finish, then try again.",
+      });
+      return;
+    }
+
     setIsProcessing(true);
     setClips([]);
     setProgressById({});
@@ -284,6 +364,17 @@ export function WorkspaceDashboard({
       const analyzer = getAIAnalyzer();
       const collectedClips: Clip[] = [];
       const collectedTranscript: TranscriptSegment[] = [];
+      const analysisOptions = {
+        targetAspectRatio: format,
+        resolution,
+        layout,
+        animationText: overlayText,
+        addWatermark,
+        removeSilences: autoRemoveSilences,
+        karaokeCaptions,
+        smartCrop,
+        sourceBlobUrl: uploadedBlobUrl,
+      };
 
       for (const [index, chunk] of chunks.entries()) {
         const label = `Transcribing chunk ${index + 1} of ${chunks.length}...`;
@@ -296,7 +387,8 @@ export function WorkspaceDashboard({
         const chunkAnalysis = await analyzer.analyze(
           chunk,
           prompt,
-          index * AUDIO_CHUNK_SECONDS
+          index * AUDIO_CHUNK_SECONDS,
+          analysisOptions
         );
         collectedClips.push(...chunkAnalysis.clips);
         collectedTranscript.push(...(chunkAnalysis.transcript ?? []));
@@ -610,8 +702,8 @@ export function WorkspaceDashboard({
       <section aria-label="Create clips" className="flex flex-col gap-6">
         <CustomDropzone
           file={uploadedFile}
-          onFileChange={setUploadedFile}
-          disabled={isProcessing}
+          onFileChange={handleFileChange}
+          disabled={isProcessing || isUploading}
         />
 
         <div className="grid gap-5 rounded-2xl border border-border-gray bg-white p-5 md:grid-cols-2 md:p-6">
@@ -824,8 +916,8 @@ export function WorkspaceDashboard({
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={isProcessing || starterLimitReached}
-              aria-busy={isProcessing}
+              disabled={isProcessing || isUploading || starterLimitReached}
+              aria-busy={isProcessing || isUploading}
               className={cn(
                 "inline-flex items-center justify-center rounded-xl bg-brand-blue px-8 py-3 text-[16px] font-semibold text-soft-black duration-200",
                 "hover:bg-brand-blue-hover",

@@ -81,7 +81,8 @@ export interface IAIAnalyzer {
   analyze(
     file: File,
     prompt: string,
-    chunkStart?: number
+    chunkStart?: number,
+    processingOptions?: Record<string, unknown>
   ): Promise<AIAnalysisResult>;
 }
 

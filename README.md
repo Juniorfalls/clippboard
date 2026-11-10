@@ -103,6 +103,7 @@ Raw source video is not uploaded to Clippboard servers for rendering. Optional s
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous client key |
 | `OPENAI_API_KEY` | Whisper transcription and GPT-4o analysis |
+| `BLOB_READ_WRITE_TOKEN` | Direct browser-to-Vercel-Blob uploads |
 
 **Resend credentials are not stored in `.env.local`.** The `RESEND_API_KEY` and `SEND_EMAIL_HOOK_SECRET` values belong in Supabase Edge Function secrets.
 
@@ -111,6 +112,7 @@ Raw source video is not uploaded to Clippboard servers for rendering. Optional s
 ```bash
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+BLOB_READ_WRITE_TOKEN=vercel_blob_rw_your_store_token
 PAYSTACK_SECRET_KEY=sk_live_or_test_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_or_test_key
 
@@ -129,7 +131,7 @@ OPENAI_MODEL=gpt-4o
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is required for Paystack webhooks, scheduled publishing, and server-side administrative operations. `TOKEN_ENCRYPTION_KEY` encrypts social OAuth tokens at rest and must remain stable after accounts are connected.
+`SUPABASE_SERVICE_ROLE_KEY` is required for Paystack webhooks, scheduled publishing, and server-side administrative operations. `BLOB_READ_WRITE_TOKEN` lets the browser upload source videos and analysis audio directly to Vercel Blob, bypassing serverless request-size limits. `TOKEN_ENCRYPTION_KEY` encrypts social OAuth tokens at rest and must remain stable after accounts are connected.
 
 Generate an encryption key with:
 
