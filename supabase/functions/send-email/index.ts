@@ -31,14 +31,32 @@ Deno.serve(async (request) => {
   }
 
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
-  const hookSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET");
+  const rawHookSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET");
 
-  if (!resendApiKey || !hookSecret) {
+  if (!resendApiKey || !rawHookSecret) {
     return errorResponse(500, "Email hook secrets are not configured.");
   }
 
+  const hookSecret = rawHookSecret
+    .replace(/^v1,/, "")
+    .replace(/^whsec_/, "");
   const payload = await request.text();
-  const headers = Object.fromEntries(request.headers.entries());
+  const webhookHeaders = {
+    "webhook-id": request.headers.get("webhook-id") ?? "",
+    "webhook-timestamp": request.headers.get("webhook-timestamp") ?? "",
+    "webhook-signature": request.headers.get("webhook-signature") ?? "",
+  };
+
+  if (
+    !webhookHeaders["webhook-id"] ||
+    !webhookHeaders["webhook-timestamp"] ||
+    !webhookHeaders["webhook-signature"]
+  ) {
+    console.error(
+      "[send-email] Missing webhook-id, webhook-timestamp, or webhook-signature."
+    );
+    return errorResponse(401, "Missing webhook signature headers.");
+  }
 
   let hookData: SupabaseSendEmailHookPayload;
 
@@ -46,15 +64,13 @@ Deno.serve(async (request) => {
     const webhook = new Webhook(hookSecret);
     hookData = webhook.verify(
       payload,
-      headers
+      webhookHeaders
     ) as SupabaseSendEmailHookPayload;
   } catch (error) {
-    return errorResponse(
-      401,
-      error instanceof Error
-        ? `Invalid webhook signature: ${error.message}`
-        : "Invalid webhook signature."
-    );
+    const message =
+      error instanceof Error ? error.message : String(error);
+    console.error("[send-email] Webhook verification failed:", message);
+    return errorResponse(401, `Invalid webhook signature: ${message}`);
   }
 
   const email = hookData.user?.email;
