@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Captions, Clapperboard, FolderOpen, Loader2, Lock, Scissors } from "lucide-react";
+import { Captions, Clapperboard, FolderOpen, Loader2, Lock, ScanFace, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CustomDropzone } from "@/components/CustomDropzone";
@@ -94,6 +94,7 @@ export function WorkspaceDashboard({
     useState<ProcessingOptions["layout"]>("single");
   const [autoRemoveSilences, setAutoRemoveSilences] = useState(true);
   const [karaokeCaptions, setKaraokeCaptions] = useState(true);
+  const [smartCrop, setSmartCrop] = useState(true);
   const [templates, setTemplates] = useState<BrandTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("none");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -336,6 +337,7 @@ export function WorkspaceDashboard({
         addWatermark,
         removeSilences: autoRemoveSilences,
         karaokeCaptions,
+        smartCrop,
         introText: selectedTemplate?.introText || undefined,
         outroText: selectedTemplate?.outroText || undefined,
         transcript: analysis.transcript ?? [],
@@ -446,6 +448,7 @@ export function WorkspaceDashboard({
         addWatermark,
         removeSilences: autoRemoveSilences,
         karaokeCaptions,
+        smartCrop,
         introText: selectedTemplate?.introText || undefined,
         outroText: selectedTemplate?.outroText || undefined,
         transcript,
@@ -657,6 +660,41 @@ export function WorkspaceDashboard({
             }}
             options={RESOLUTIONS}
           />
+          <div className="flex min-w-[255px] flex-1 items-center justify-between gap-3 rounded-2 border border-border-gray bg-white p-3">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <ScanFace className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" aria-hidden />
+              <div>
+                <p className="text-[14px] font-semibold text-soft-black">
+                  Smart Crop (Face Tracking)
+                </p>
+                <p className="text-[12px] text-soft-black/50">
+                  Keep the speaker centered in 9:16.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={smartCrop}
+              aria-label="Smart crop face tracking"
+              onClick={() => setSmartCrop((current) => !current)}
+              className={cn(
+                "relative h-7 w-12 shrink-0 rounded-full border duration-200",
+                smartCrop
+                  ? "border-brand-blue bg-brand-blue"
+                  : "border-border-gray bg-soft-black/15",
+                focusRing
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-white shadow-sm duration-200",
+                  smartCrop ? "left-[22px]" : "left-[3px]"
+                )}
+              />
+            </button>
+          </div>
           <div className="flex min-w-[255px] flex-1 items-center justify-between gap-3 rounded-2 border border-border-gray bg-white p-3">
             <div className="flex min-w-0 items-start gap-2.5">
               <Captions className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" aria-hidden />

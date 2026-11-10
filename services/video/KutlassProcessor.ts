@@ -179,6 +179,10 @@ function mapTimeThroughCuts(time: number, cuts: TimeRange[]) {
   return Math.max(0, time - removed);
 }
 
+function buildCenterCropFilter() {
+  return "crop=w='min(iw,ih*9/16)':h='min(ih,iw*16/9)':x='(iw-ow)/2':y='(ih-oh)/2'";
+}
+
 function buildFaceCropFilter(
   clip: Clip,
   options: ProcessingOptions,
@@ -609,25 +613,35 @@ export class KutlassProcessor implements IVideoProcessor {
       options.targetAspectRatio === '9:16' ||
       options.layout === 'split-screen'
     ) {
-      try {
-        const { trackFaces } = await import('@/lib/face-tracker');
-        const track = await trackFaces(
-          sourceFile,
-          clip.startTime,
-          clip.endTime
-        );
-        if (track) {
-          if (options.layout === 'split-screen') {
-            splitFilter = buildSplitScreenFilter(clip, options, track);
-          } else if (options.targetAspectRatio === '9:16') {
-            cropFilter = buildFaceCropFilter(clip, options, track);
+      if (options.smartCrop) {
+        try {
+          const { trackFaces } = await import('@/lib/face-tracker');
+          const track = await trackFaces(
+            sourceFile,
+            clip.startTime,
+            clip.endTime
+          );
+          if (track) {
+            if (options.layout === 'split-screen') {
+              splitFilter = buildSplitScreenFilter(clip, options, track);
+            } else if (options.targetAspectRatio === '9:16') {
+              cropFilter = buildFaceCropFilter(clip, options, track);
+            }
           }
+        } catch (error) {
+          console.warn(
+            '[KutlassProcessor] Face tracking failed; using the center crop.',
+            error
+          );
         }
-      } catch (error) {
-        console.warn(
-          '[KutlassProcessor] Face tracking failed; using the center crop.',
-          error
-        );
+      }
+
+      if (
+        options.targetAspectRatio === '9:16' &&
+        !cropFilter &&
+        !splitFilter
+      ) {
+        cropFilter = buildCenterCropFilter();
       }
     }
 

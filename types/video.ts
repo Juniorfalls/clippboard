@@ -64,6 +64,7 @@ export interface ProcessingOptions {
   addWatermark: boolean;
   removeSilences: boolean;
   karaokeCaptions: boolean;
+  smartCrop: boolean;
   introText?: string;
   outroText?: string;
   transcript?: TranscriptSegment[];

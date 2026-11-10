@@ -19,6 +19,13 @@ async function getFaceModel(): Promise<BlazeFaceModel> {
     modelPromise = (async () => {
       const tf = await import("@tensorflow/tfjs");
       const blazeface = await import("@tensorflow-models/blazeface");
+
+      try {
+        await tf.setBackend("webgl");
+      } catch {
+        await tf.setBackend("cpu");
+      }
+
       await tf.ready();
       return blazeface.load({ maxFaces: 2, scoreThreshold: 0.5 });
     })().catch((error) => {
@@ -80,7 +87,7 @@ export async function trackFaces(
   }
 
   const duration = Math.max(0.1, endTime - startTime);
-  const sampleCount = Math.min(36, Math.max(6, Math.ceil(duration / 1.5)));
+  const sampleCount = Math.min(60, Math.max(8, Math.ceil(duration)));
   const interval = sampleCount > 1 ? duration / (sampleCount - 1) : duration;
 
   const video = document.createElement("video");
