@@ -6,10 +6,8 @@ import { toast } from "sonner";
 
 export function CheckoutResume({
   plan,
-  priceId,
 }: {
   plan?: "pro" | "agency";
-  priceId?: string;
 }) {
   const router = useRouter();
   const started = useRef(false);
@@ -28,19 +26,12 @@ export function CheckoutResume({
       `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
     );
 
-    if (!priceId) {
-      toast.error("Billing is not configured", {
-        description: "Add the Stripe price IDs to the environment.",
-      });
-      return;
-    }
-
     async function resumeCheckout() {
       try {
         const response = await fetch("/api/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ priceId }),
+          body: JSON.stringify({ plan }),
         });
 
         if (response.status === 401) {
@@ -71,7 +62,7 @@ export function CheckoutResume({
     }
 
     void resumeCheckout();
-  }, [plan, priceId, router]);
+  }, [plan, router]);
 
   return null;
 }

@@ -21,7 +21,7 @@ Clippboard combines AI moment detection, transcription, automatic reframing, ani
 - **Direct publishing and scheduling** for TikTok and YouTube
 - **Team workspaces, projects, and admin analytics**
 - **Final Cut Pro XML export** for professional editing workflows
-- **Real Stripe subscriptions** with Starter, Pro, and Agency plans
+- **Paystack subscriptions** with Starter, Pro, and Agency plans
 
 ---
 
@@ -36,7 +36,7 @@ Clippboard combines AI moment detection, transcription, automatic reframing, ani
 | Transactional email | Resend with React Email |
 | AI | OpenAI Whisper and GPT-4o |
 | Video processing | Kutlass / FFmpeg WASM in the browser |
-| Payments | Stripe Checkout and signed webhooks |
+| Payments | Paystack Checkout and signed webhooks |
 | Notifications | Sonner |
 
 ---
@@ -111,11 +111,8 @@ Raw source video is not uploaded to Clippboard servers for rendering. Optional s
 ```bash
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-STRIPE_SECRET_KEY=sk_live_or_test_key
-STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_or_test_key
-STRIPE_PRICE_PRO=price_your_pro_price_id
-STRIPE_PRICE_AGENCY=price_your_agency_price_id
+PAYSTACK_SECRET_KEY=sk_live_or_test_key
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_or_test_key
 
 TOKEN_ENCRYPTION_KEY=your_32_byte_base64_key
 TIKTOK_CLIENT_KEY=your_tiktok_client_key
@@ -132,7 +129,7 @@ OPENAI_MODEL=gpt-4o
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is required for Stripe webhooks, scheduled publishing, and server-side administrative operations. `TOKEN_ENCRYPTION_KEY` encrypts social OAuth tokens at rest and must remain stable after accounts are connected.
+`SUPABASE_SERVICE_ROLE_KEY` is required for Paystack webhooks, scheduled publishing, and server-side administrative operations. `TOKEN_ENCRYPTION_KEY` encrypts social OAuth tokens at rest and must remain stable after accounts are connected.
 
 Generate an encryption key with:
 
@@ -183,17 +180,19 @@ Profiles are created automatically through a Supabase Auth trigger.
 
 ---
 
-## Stripe Billing
+## Paystack Billing
 
-Checkout is handled through the authenticated `/api/checkout` route. Subscription upgrades are applied by the signed `/api/webhook` endpoint after Stripe sends `checkout.session.completed`.
+Checkout is handled through the authenticated `/api/checkout` route. The server initializes a Paystack transaction in USD for the selected plan and returns the authorization URL to the frontend.
 
-Create recurring monthly prices in Stripe and add their IDs as `STRIPE_PRICE_PRO` and `STRIPE_PRICE_AGENCY`. Register the production webhook URL:
+Subscription upgrades are applied by `/api/webhook` after Paystack sends a `charge.success` event. Webhooks are verified using the `x-paystack-signature` header and an HMAC SHA512 digest of the raw request body.
+
+Register the production webhook URL in the Paystack dashboard:
 
 ```text
 https://your-domain.com/api/webhook
 ```
 
-Subscribe it to `checkout.session.completed` and store the signing secret as `STRIPE_WEBHOOK_SECRET`.
+Subscribe it to `charge.success`, then add `PAYSTACK_SECRET_KEY` and `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` to Vercel.
 
 ---
 
@@ -244,7 +243,7 @@ supabase db push
 
 7. Add the production OAuth callback URLs in the TikTok and Google developer consoles.
 8. Deploy the `send-email` Edge Function and configure the Supabase Send Email hook.
-9. Create the Stripe webhook endpoint and add all billing secrets.
+9. Create the Paystack webhook endpoint and add both Paystack keys.
 10. Run `supabase db push` against the production project if migrations are not already applied.
 11. Enable `pg_cron` and `pg_net` and run the publishing cron SQL after deployment.
 
@@ -265,7 +264,7 @@ npm run start   # Run the production build
 ```text
 app/                  Next.js pages, API routes, and legal pages
 components/           Dashboard, gallery, modals, navigation, and UI primitives
-lib/                  Plans, brand kits, Stripe helpers, social publishing, utilities
+lib/                  Plans, brand kits, Paystack helpers, social publishing, utilities
 services/ai/          OpenAI and mock analysis providers
 services/video/       Kutlass / FFmpeg WASM rendering pipeline
 supabase/migrations/  Database schema, RLS policies, and admin functions
@@ -281,7 +280,7 @@ types/                Shared TypeScript types
 - Extracted audio is sent to OpenAI for transcription and moment detection.
 - Supabase Row Level Security restricts access to user, team, project, and clip data.
 - Admin metrics use security-definer database functions that verify admin access.
-- Stripe webhooks are verified with the endpoint signing secret.
+- Paystack webhooks are verified with the `x-paystack-signature` header.
 - Social OAuth tokens are encrypted at rest and hidden from browser-readable grants.
 - Plan limits are enforced on the server and in the dashboard UI.
 

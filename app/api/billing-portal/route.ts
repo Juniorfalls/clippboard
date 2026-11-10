@@ -13,8 +13,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Mock Stripe billing portal. Replace this redirect with a real
-  // stripe.billingPortal.sessions.create call when billing keys are added.
+  // Billing management is not yet connected to the Paystack dashboard.
   return NextResponse.redirect(
     new URL("/dashboard/settings?billing=portal", request.url)
   );

@@ -1,22 +1,27 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { Paystack } from "@paystack/paystack-sdk";
 import { createClient } from "@/utils/supabase/server";
-import type { Plan } from "@/lib/plans";
+import {
+  isPaystackPlan,
+  PAYSTACK_CURRENCY,
+  PAYSTACK_PLAN_AMOUNTS,
+} from "@/lib/paystack";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function resolvePlan(priceId: string): Plan | null {
-  if (priceId === process.env.STRIPE_PRICE_PRO) return "pro";
-  if (priceId === process.env.STRIPE_PRICE_AGENCY) return "agency";
-  return null;
-}
+type InitializeData = {
+  authorization_url?: string;
+  access_code?: string;
+  reference?: string;
+};
 
 export async function POST(request: Request) {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
+  const secretKey = process.env.PAYSTACK_SECRET_KEY;
   if (!secretKey) {
     return NextResponse.json(
-      { error: "Stripe is not configured." },
+      { error: "Paystack is not configured." },
       { status: 500 }
     );
   }
@@ -31,47 +36,55 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { priceId?: unknown }
+    | { plan?: unknown }
     | null;
-  const priceId =
-    typeof body?.priceId === "string" ? body.priceId.trim() : "";
-  const plan = resolvePlan(priceId);
+  const plan = body?.plan;
 
-  if (!priceId || !plan) {
+  if (!isPaystackPlan(plan)) {
     return NextResponse.json(
       { error: "Choose a valid subscription plan." },
       { status: 400 }
     );
   }
 
+  if (!user.email) {
+    return NextResponse.json(
+      { error: "Your account does not have an email address." },
+      { status: 400 }
+    );
+  }
+
   const origin = new URL(request.url).origin;
+  const reference = `clippboard_${user.id.slice(0, 8)}_${randomUUID()}`;
 
   try {
-    const stripe = new Stripe(secretKey);
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      line_items: [{ price: priceId, quantity: 1 }],
-      customer_email: user.email,
-      client_reference_id: user.id,
-      metadata: { user_id: user.id, plan },
-      subscription_data: {
-        metadata: { user_id: user.id, plan },
-      },
-      success_url: `${origin}/dashboard?success=true`,
-      cancel_url: `${origin}/#pricing`,
-      allow_promotion_codes: true,
+    const paystack = new Paystack(secretKey);
+    const result = await paystack.transaction.initialize({
+      email: user.email,
+      amount: PAYSTACK_PLAN_AMOUNTS[plan],
+      currency: PAYSTACK_CURRENCY,
+      reference,
+      callback_url: `${origin}/dashboard?success=true`,
+      metadata: JSON.stringify({ user_id: user.id, plan }),
     });
+    const data = result.data as InitializeData | undefined;
 
-    if (!session.url) {
+    if (!result.status || !data?.authorization_url) {
+      console.error("[checkout] Paystack did not return an authorization URL", {
+        message: result.message,
+      });
       return NextResponse.json(
-        { error: "Stripe did not return a checkout URL." },
+        { error: "Paystack did not return a checkout URL." },
         { status: 502 }
       );
     }
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({
+      url: data.authorization_url,
+      reference: data.reference ?? reference,
+    });
   } catch (error) {
-    console.error("[checkout] Could not create Stripe session", error);
+    console.error("[checkout] Could not initialize Paystack transaction", error);
     return NextResponse.json(
       { error: "Checkout could not be started. Please try again." },
       { status: 502 }

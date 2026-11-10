@@ -376,16 +376,9 @@ export default function HomePage({
       : searchParams?.checkout === "pro"
         ? "pro"
         : undefined;
-  const checkoutPriceId =
-    checkoutPlan === "agency"
-      ? process.env.STRIPE_PRICE_AGENCY
-      : checkoutPlan === "pro"
-        ? process.env.STRIPE_PRICE_PRO
-        : undefined;
-
   return (
     <div className="min-h-screen bg-warm-white text-soft-black">
-      <CheckoutResume plan={checkoutPlan} priceId={checkoutPriceId} />
+      <CheckoutResume plan={checkoutPlan} />
       <header className="sticky top-0 z-40 border-b border-border-gray/70 bg-warm-white/90 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-4 py-4">
           <Link
@@ -628,11 +621,6 @@ export default function HomePage({
                     {tier.plan ? (
                       <CheckoutButton
                         plan={tier.plan}
-                        priceId={
-                          tier.plan === "pro"
-                            ? process.env.STRIPE_PRICE_PRO
-                            : process.env.STRIPE_PRICE_AGENCY
-                        }
                         className={cn(
                           "mt-8 inline-flex items-center justify-center rounded-2 px-5 py-3 text-[14px] font-semibold duration-200",
                           tier.highlighted

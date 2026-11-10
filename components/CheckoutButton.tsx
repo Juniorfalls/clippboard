@@ -10,12 +10,10 @@ const focusRing =
 
 export function CheckoutButton({
   plan,
-  priceId,
   children,
   className,
 }: {
   plan: "pro" | "agency";
-  priceId?: string;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -23,20 +21,13 @@ export function CheckoutButton({
   const [isLoading, setIsLoading] = useState(false);
 
   async function startCheckout() {
-    if (!priceId) {
-      toast.error("Billing is not configured", {
-        description: "Add the Stripe price IDs to the environment.",
-      });
-      return;
-    }
-
     setIsLoading(true);
 
     try {
       const response = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({ plan }),
       });
 
       if (response.status === 401) {
