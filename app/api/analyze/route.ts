@@ -35,6 +35,7 @@ const MomentSchema = z
     startTime: z.number().finite().min(0),
     endTime: z.number().finite().positive(),
     engagementScore: z.number().int().min(1).max(100),
+    viralityReason: z.string().trim().min(1).max(240),
     fillerCuts: z.array(FillerCutSchema).max(40),
     broll: z.array(BRollSchema).max(2),
   })
@@ -64,6 +65,7 @@ const OPENAI_RESPONSE_SCHEMA = {
           startTime: { type: "number" },
           endTime: { type: "number" },
           engagementScore: { type: "integer", minimum: 1, maximum: 100 },
+          viralityReason: { type: "string" },
           fillerCuts: {
             type: "array",
             maxItems: 40,
@@ -98,6 +100,7 @@ const OPENAI_RESPONSE_SCHEMA = {
           "startTime",
           "endTime",
           "engagementScore",
+          "viralityReason",
           "fillerCuts",
           "broll",
         ],
@@ -265,11 +268,11 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought and be between 15 and 90 seconds long. For every clip, write a short, punchy on-screen hook of 3 to 6 words that earns attention in the first second. The hookText must be plain spoken-style text with no quotes, hashtags, emojis, or trailing punctuation. Rate each clip's engagement potential from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. Return JSON only.",
+            "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought and be between 15 and 90 seconds long. For every clip, write a short, punchy on-screen hook of 3 to 6 words that earns attention in the first second. The hookText must be plain spoken-style text with no quotes, hashtags, emojis, or trailing punctuation. Rate each clip's engagement potential from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. For every clip, write a viralityReason: one concise sentence explaining the score, such as a strong emotional hook in the first 3 seconds or high shareability from a bold take. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. Return JSON only.",
         },
         {
           role: "user",
-          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, a engagementScore from 1 to 100, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
+          content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, a engagementScore from 1 to 100, a one-sentence viralityReason explaining the score, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
         },
       ],
     });
@@ -353,6 +356,7 @@ export async function POST(request: Request) {
           endTime,
           duration: roundToHundredths(clipDuration),
           engagementScore: moment.engagementScore,
+          viralityReason: moment.viralityReason.trim(),
           fillerCuts,
           silenceCuts: findSilenceCuts(
             transcriptSegments,
@@ -364,7 +368,7 @@ export async function POST(request: Request) {
           status: "pending" as const,
         };
       })
-      .sort((a, b) => a.startTime - b.startTime);
+      .sort((a, b) => b.engagementScore - a.engagementScore);
 
     await Promise.all(
       clips.map(async (clip) => {

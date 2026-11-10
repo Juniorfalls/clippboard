@@ -16,6 +16,7 @@ export class MockAIAnalyzer implements IAIAnalyzer {
         endTime,
         duration: endTime - startTime,
         engagementScore: 70 + ((index * 7) % 31),
+        viralityReason: "Strong opening hook with a clear payoff.",
         status: 'pending',
       };
     });

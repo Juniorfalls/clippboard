@@ -214,6 +214,9 @@ export function ClipCard({
 }) {
   const [isTrimOpen, setIsTrimOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
+  const [reasonPinned, setReasonPinned] = useState(false);
+  const [reasonHovered, setReasonHovered] = useState(false);
+  const showReason = reasonPinned || reasonHovered;
   const isScheduled = clip.status === "scheduled";
   const isCompleted = clip.status === "completed" && Boolean(clip.url);
   const isReady = (isCompleted || isScheduled) && Boolean(clip.url);
@@ -234,14 +237,39 @@ export function ClipCard({
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-blue-light bg-gradient-to-r from-brand-blue-light/80 to-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-soft-black shadow-[0_0_18px_rgba(59,130,246,0.35)]">
-            <Sparkles className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
+        <div className="relative flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onMouseEnter={() => setReasonHovered(true)}
+            onMouseLeave={() => setReasonHovered(false)}
+            onFocus={() => setReasonHovered(true)}
+            onBlur={() => setReasonHovered(false)}
+            onClick={() => setReasonPinned((current) => !current)}
+            aria-expanded={showReason}
+            aria-describedby={showReason ? `engagement-reason-${clip.id}` : undefined}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border border-brand-blue-light bg-gradient-to-r from-brand-blue-light/80 to-emerald-100 px-2.5 py-1 text-left text-[12px] font-semibold text-soft-black shadow-[0_0_18px_rgba(59,130,246,0.35)] duration-200",
+              focusRing
+            )}
+          >
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand-blue" aria-hidden />
             {clip.engagementScore} Engagement Score
-          </span>
+          </button>
           <span className="shrink-0 rounded-lg bg-warm-white px-2 py-1 text-[12px] font-semibold text-soft-black/70">
             {formatDuration(clip.duration)}
           </span>
+          {showReason && (
+            <div
+              id={`engagement-reason-${clip.id}`}
+              role="tooltip"
+              className="absolute left-0 right-0 top-full z-20 mt-2 rounded-2 border border-border-gray bg-white p-3 text-left text-[12px] font-medium leading-relaxed text-soft-black shadow-lg"
+            >
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-brand-blue">
+                Why it works
+              </span>
+              {clip.viralityReason || "The AI did not provide a reason."}
+            </div>
+          )}
         </div>
 
         {(() => {
