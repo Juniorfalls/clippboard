@@ -149,7 +149,11 @@ function buildSplitScreenFilter(
   }
 
   const cropY = Math.max(0, Math.round((height - cropHeight) / 2));
-  const cuts = getRelativeCuts(clip);
+  const cuts = getRelativeCuts(
+    clip,
+    clip.removeFiller ?? false,
+    options.removeSilences
+  );
   const points: FaceTrack['points'] = [];
 
   track.points.forEach((point) => {
@@ -190,11 +194,13 @@ function buildSplitScreenFilter(
 
 function getRelativeCuts(
   clip: Clip,
-  includeFiller = clip.removeFiller ?? false
+  includeFiller = clip.removeFiller ?? false,
+  includeSilence = false
 ): TimeRange[] {
   const ranges = [
     ...(clip.cutRanges ?? []),
     ...(includeFiller ? clip.fillerCuts ?? [] : []),
+    ...(includeSilence ? clip.silenceCuts ?? [] : []),
   ]
     .map((range) => ({
       start: Math.max(0, range.start - clip.startTime),
@@ -239,7 +245,11 @@ function buildFaceCropFilter(
   const { width, height } = track;
   if (width <= 0 || height <= 0 || track.points.length === 0) return null;
 
-  const cuts = getRelativeCuts(clip);
+  const cuts = getRelativeCuts(
+    clip,
+    clip.removeFiller ?? false,
+    options.removeSilences
+  );
   const points: FaceTrack['points'] = [];
 
   track.points.forEach((point) => {
@@ -293,7 +303,11 @@ function buildFaceCropFilter(
 }
 
 function buildAssSubtitles(clip: Clip, options: ProcessingOptions) {
-  const cuts: TimeRange[] = getRelativeCuts(clip);
+  const cuts: TimeRange[] = getRelativeCuts(
+    clip,
+    clip.removeFiller ?? false,
+    options.removeSilences
+  );
   const fillerCuts = clip.removeFiller ? clip.fillerCuts ?? [] : [];
 
   const segments: TranscriptSegment[] = (options.transcript ?? [])
@@ -337,9 +351,12 @@ function buildAssSubtitles(clip: Clip, options: ProcessingOptions) {
     })
     .filter((segment) => segment.text.length > 0 && segment.end > segment.start);
 
+  const hookText = clip.hookText?.trim();
   const introText = options.introText?.trim();
   const outroText = options.outroText?.trim();
-  if (segments.length === 0 && !introText && !outroText) return null;
+  if (segments.length === 0 && !hookText && !introText && !outroText) {
+    return null;
+  }
 
   const fontName = options.brandFont.replace(/[,\r\n]/g, ' ').trim() || 'Inter';
   const fontSize = options.resolution === '4K' ? 88 : 72;
@@ -357,6 +374,16 @@ function buildAssSubtitles(clip: Clip, options: ProcessingOptions) {
       segment.end
     )},Brand,,0,0,0,,${text}`;
   });
+
+  if (hookText) {
+    const hookFontSize = options.resolution === '4K' ? 116 : 92;
+    const hookEnd = Math.min(3, outputDuration);
+    events.unshift(
+      `Dialogue: 2,${toAssTime(0)},${toAssTime(
+        hookEnd
+      )},Brand,,0,0,0,,{\an5\fs${hookFontSize}\b1}${escapeAssText(hookText)}`
+    );
+  }
 
   if (introText) {
     const introEnd = Math.min(2.5, outputDuration);
@@ -481,7 +508,11 @@ export class KutlassProcessor implements IVideoProcessor {
     try {
       await ffmpeg.writeFile(inputName, await fetchFile(sourceFile));
 
-      const cuts = getRelativeCuts(clip);
+      const cuts = getRelativeCuts(
+        clip,
+        clip.removeFiller ?? false,
+        options.removeSilences
+      );
       const cutCondition = cuts
         .map(
           (cut) =>

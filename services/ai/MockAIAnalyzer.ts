@@ -11,6 +11,7 @@ export class MockAIAnalyzer implements IAIAnalyzer {
       return {
         id: `mock-clip-${index + 1}`,
         title: `Mock Clip ${index + 1}`,
+        hookText: "Start watching now",
         startTime,
         endTime,
         duration: endTime - startTime,
