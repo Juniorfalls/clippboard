@@ -89,7 +89,8 @@ const BENTO_FEATURES: {
   },
   {
     title: "Professional Exports",
-    description: "Take your content to the next level.",
+    description:
+      "Client-side rendering. Your raw files stay on your machine.",
     icon: Download,
     items: [
       "4K Upscaling",
@@ -283,7 +284,12 @@ const PRICING_TIERS: Array<{
     price: "$0",
     cadence: "/ month",
     description: "For creators testing the workflow.",
-    features: ["3 videos/month", "1080p Export", "Watermark applied"],
+    features: [
+      "3 videos/month",
+      "1080p Export",
+      "Zero-upload privacy architecture",
+      "Watermark applied",
+    ],
     cta: "Start for Free",
     href: "/login",
     highlighted: false,
@@ -447,6 +453,10 @@ export default function HomePage({
               <h1 className="mt-4 max-w-2xl text-[46px] font-bold leading-[1] -tracking-1 text-soft-black sm:text-[64px]">
                 Turn long videos into engaging short-form content.
               </h1>
+              <p className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-brand-blue/20 bg-blue-500/10 px-3 py-1.5 max-w-full text-[12px] font-semibold leading-snug text-soft-black/70 shadow-[0_2px_14px_rgba(59,130,246,0.12)]">
+                <span aria-hidden="true">🔒</span>
+                100% Private. Footage never leaves your browser.
+              </p>
               <p className="mt-5 max-w-xl text-[18px] leading-relaxed text-gray-500 sm:mt-6">
                 Clippboard uses AI to find the best moments, reframe them to
                 9:16, and add animated captions—all processed securely in your
