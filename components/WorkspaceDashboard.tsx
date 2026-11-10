@@ -12,12 +12,7 @@ import { useTeam } from "@/components/TeamProvider";
 import { ClipSkeleton } from "@/components/ClipSkeleton";
 import { ClipGallery } from "@/components/ClipGallery";
 import type { PublishPayload } from "@/components/PublishModal";
-import { getAIAnalyzer } from "@/services/ai";
 import { getVideoProcessor } from "@/services/video";
-import {
-  AUDIO_CHUNK_SECONDS,
-  extractAndChunkAudio,
-} from "@/services/video/extract-audio-chunks";
 import { loadBrandKit, type BrandTemplate } from "@/lib/brand-kit";
 import { STARTER_CLIP_LIMIT, type Plan } from "@/lib/plans";
 import { createClient } from "@/utils/supabase/client";
@@ -71,6 +66,24 @@ type TeamProject = {
   source_name: string | null;
   clip_count: number;
   created_at: string;
+};
+
+type VideoJobRow = {
+  status: "queued" | "processing" | "completed" | "failed";
+  error: string | null;
+  transcript: TranscriptSegment[] | null;
+};
+
+type ClipRow = {
+  id: string;
+  title: string;
+  duration: number | null;
+  engagement_score: number | null;
+  start_time: number | null;
+  end_time: number | null;
+  hook_text: string | null;
+  virality_reason: string | null;
+  metadata: Partial<Clip> | null;
 };
 
 export function WorkspaceDashboard({
@@ -263,15 +276,37 @@ export function WorkspaceDashboard({
   async function persistClip(clip: Clip) {
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("clips").insert({
-        user_id: userId,
+      const payload = {
         title: clip.title,
         duration: clip.duration,
         engagement_score: clip.engagementScore,
+        start_time: clip.startTime,
+        end_time: clip.endTime,
+        hook_text: clip.hookText,
+        virality_reason: clip.viralityReason,
         video_url: clip.storageUrl ?? null,
-      });
+        status: clip.status,
+        metadata: clip,
+        updated_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
+      const { data: updated, error: updateError } = await supabase
+        .from("clips")
+        .update(payload)
+        .eq("id", clip.id)
+        .eq("user_id", userId)
+        .select("id");
+
+      if (updateError) throw updateError;
+
+      if (!updated?.length) {
+        const { error: insertError } = await supabase.from("clips").insert({
+          id: clip.id,
+          user_id: userId,
+          ...payload,
+        });
+        if (insertError) throw insertError;
+      }
     } catch (error) {
       if (!hasShownClipPersistError.current) {
         hasShownClipPersistError.current = true;
@@ -342,63 +377,117 @@ export function WorkspaceDashboard({
     setIsProcessing(true);
     setClips([]);
     setProgressById({});
-    setAnalysisStatus("Preparing audio...");
+    setAnalysisStatus("Queueing background processing...");
 
     const statusToastId = "analysis-status";
-    toast.loading("Extracting audio...", { id: statusToastId });
+    toast.loading("Processing video...", {
+      id: statusToastId,
+      description: "Sending the video to the background worker.",
+    });
 
     try {
-      const chunks = await extractAndChunkAudio(uploadedFile, (progress) => {
-        const percent = Math.round(progress * 100);
-        setAnalysisStatus(`Extracting audio... ${percent}%`);
-        toast.loading("Extracting audio...", {
-          id: statusToastId,
-          description: `${percent}% complete`,
-        });
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blobUrl: uploadedBlobUrl,
+          prompt,
+          userId,
+          sourceName: uploadedFile.name,
+          options: {
+            targetAspectRatio: format,
+            resolution,
+            layout,
+            animationText: overlayText,
+            addWatermark,
+            removeSilences: autoRemoveSilences,
+            karaokeCaptions,
+            smartCrop,
+            sourceBlobUrl: uploadedBlobUrl,
+          },
+        }),
       });
 
-      if (chunks.length === 0) {
-        throw new Error("No audio chunks were created from this video.");
-      }
+      const queued = (await response.json().catch(() => null)) as
+        | { jobId?: string; error?: string }
+        | null;
 
-      const analyzer = getAIAnalyzer();
-      const collectedClips: Clip[] = [];
-      const collectedTranscript: TranscriptSegment[] = [];
-      const analysisOptions = {
-        targetAspectRatio: format,
-        resolution,
-        layout,
-        animationText: overlayText,
-        addWatermark,
-        removeSilences: autoRemoveSilences,
-        karaokeCaptions,
-        smartCrop,
-        sourceBlobUrl: uploadedBlobUrl,
-      };
-
-      for (const [index, chunk] of chunks.entries()) {
-        const label = `Transcribing chunk ${index + 1} of ${chunks.length}...`;
-        setAnalysisStatus(label);
-        toast.loading(label, {
-          id: statusToastId,
-          description: "Whisper is transcribing this section.",
-        });
-
-        const chunkAnalysis = await analyzer.analyze(
-          chunk,
-          prompt,
-          index * AUDIO_CHUNK_SECONDS,
-          analysisOptions
+      if (!response.ok) {
+        throw new Error(
+          queued?.error ??
+            `Could not queue video processing (${response.status}).`
         );
-        collectedClips.push(...chunkAnalysis.clips);
-        collectedTranscript.push(...(chunkAnalysis.transcript ?? []));
       }
+
+      if (!queued?.jobId) {
+        throw new Error("The analysis service did not return a job ID.");
+      }
+
+      setAnalysisStatus("Processing video in the background...");
+      toast.loading("Processing video...", {
+        id: statusToastId,
+        description: "Transcribing and finding the best moments.",
+      });
+
+      const supabase = createClient();
+      const maxAttempts = 360;
+      let job: VideoJobRow | null = null;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const { data, error } = await supabase
+          .from("video_jobs")
+          .select("status, error, transcript")
+          .eq("id", queued.jobId)
+          .maybeSingle();
+
+        if (error) throw error;
+        job = data as VideoJobRow | null;
+
+        if (job?.status === "failed") {
+          throw new Error(job.error ?? "Video processing failed.");
+        }
+
+        if (job?.status === "completed") break;
+
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      }
+
+      if (job?.status !== "completed") {
+        throw new Error(
+          "Video processing is taking longer than expected. Try a shorter video."
+        );
+      }
+
+      const { data: clipRows, error: clipsError } = await supabase
+        .from("clips")
+        .select(
+          "id, title, duration, engagement_score, start_time, end_time, hook_text, virality_reason, metadata"
+        )
+        .eq("job_id", queued.jobId)
+        .order("engagement_score", { ascending: false });
+
+      if (clipsError) throw clipsError;
 
       const analysis = {
-        clips: collectedClips
-          .sort((a, b) => b.engagementScore - a.engagementScore)
-          .slice(0, 10),
-        transcript: collectedTranscript.sort((a, b) => a.start - b.start),
+        clips: ((clipRows ?? []) as ClipRow[]).map((row) => {
+          const metadata = row.metadata ?? {};
+          return {
+            ...metadata,
+            id: row.id,
+            title: row.title,
+            duration: Number(row.duration ?? metadata.duration ?? 0),
+            engagementScore: Number(
+              row.engagement_score ?? metadata.engagementScore ?? 0
+            ),
+            startTime: Number(row.start_time ?? metadata.startTime ?? 0),
+            endTime: Number(row.end_time ?? metadata.endTime ?? 0),
+            hookText: row.hook_text ?? metadata.hookText ?? "",
+            viralityReason:
+              row.virality_reason ?? metadata.viralityReason ?? "",
+            status: "pending" as const,
+          };
+        }),
+        transcript: Array.isArray(job.transcript) ? job.transcript : [],
       };
 
       if (analysis.clips.length === 0) {

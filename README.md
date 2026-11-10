@@ -104,6 +104,7 @@ Raw source video is not uploaded to Clippboard servers for rendering. Optional s
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous client key |
 | `OPENAI_API_KEY` | Whisper transcription and GPT-4o analysis |
 | `BLOB_READ_WRITE_TOKEN` | Direct browser-to-Vercel-Blob uploads |
+| `INNGEST_EVENT_KEY` | Queue background video-processing jobs |
 
 **Resend credentials are not stored in `.env.local`.** The `RESEND_API_KEY` and `SEND_EMAIL_HOOK_SECRET` values belong in Supabase Edge Function secrets.
 
@@ -113,6 +114,8 @@ Raw source video is not uploaded to Clippboard servers for rendering. Optional s
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 BLOB_READ_WRITE_TOKEN=vercel_blob_rw_your_store_token
+INNGEST_EVENT_KEY=your_inngest_event_key
+INNGEST_SIGNING_KEY=signkey_your_inngest_signing_key
 PAYSTACK_SECRET_KEY=sk_live_or_test_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_or_test_key
 
@@ -131,7 +134,7 @@ OPENAI_MODEL=gpt-4o
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is required for Paystack webhooks, scheduled publishing, and server-side administrative operations. `BLOB_READ_WRITE_TOKEN` lets the browser upload source videos and analysis audio directly to Vercel Blob, bypassing serverless request-size limits. `TOKEN_ENCRYPTION_KEY` encrypts social OAuth tokens at rest and must remain stable after accounts are connected.
+`SUPABASE_SERVICE_ROLE_KEY` is required for Paystack webhooks, scheduled publishing, and server-side administrative operations. `BLOB_READ_WRITE_TOKEN` lets the browser upload source videos directly to Vercel Blob, bypassing serverless request-size limits. `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` connect the app to Inngest Cloud so transcription and AI analysis run outside the request timeout. `TOKEN_ENCRYPTION_KEY` encrypts social OAuth tokens at rest and must remain stable after accounts are connected.
 
 Generate an encryption key with:
 
@@ -246,8 +249,9 @@ supabase db push
 7. Add the production OAuth callback URLs in the TikTok and Google developer consoles.
 8. Deploy the `send-email` Edge Function and configure the Supabase Send Email hook.
 9. Create the Paystack webhook endpoint and add both Paystack keys.
-10. Run `supabase db push` against the production project if migrations are not already applied.
-11. Enable `pg_cron` and `pg_net` and run the publishing cron SQL after deployment.
+10. Create an Inngest Cloud app pointing at `https://your-domain.com/api/inngest`, then add `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` to Vercel.
+11. Run `supabase db push` against the production project if migrations are not already applied.
+12. Enable `pg_cron` and `pg_net` and run the publishing cron SQL after deployment.
 
 ---
 
@@ -267,6 +271,7 @@ npm run start   # Run the production build
 app/                  Next.js pages, API routes, and legal pages
 components/           Dashboard, gallery, modals, navigation, and UI primitives
 lib/                  Plans, brand kits, Paystack helpers, social publishing, utilities
+lib/inngest/          Inngest client and background video-processing function
 services/ai/          OpenAI and mock analysis providers
 services/video/       Kutlass / FFmpeg WASM rendering pipeline
 supabase/migrations/  Database schema, RLS policies, and admin functions
