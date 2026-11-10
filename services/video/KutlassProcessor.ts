@@ -1,11 +1,11 @@
 import { getFfmpeg } from '@/lib/extract-audio';
 import type { FaceTrack } from '@/lib/face-tracker';
+import { buildKaraokeAss } from '@/services/video/ass-subtitles';
 import {
   Clip,
   IVideoProcessor,
   ProcessingOptions,
   TimeRange,
-  TranscriptSegment,
 } from '@/types/video';
 
 const SAMPLE_VIDEO_URL =
@@ -22,62 +22,6 @@ function createId() {
 function getExtension(fileName: string) {
   const extension = fileName.split('.').pop()?.toLowerCase();
   return extension && /^[a-z0-9]+$/.test(extension) ? extension : 'mp4';
-}
-
-function toAssTime(seconds: number) {
-  const safe = Math.max(0, seconds);
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const secs = Math.floor(safe % 60);
-  const centis = Math.floor((safe - Math.floor(safe)) * 100);
-  return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(
-    2,
-    '0'
-  )}.${String(centis).padStart(2, '0')}`;
-}
-
-function escapeAssText(value: string) {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/{/g, '\\{')
-    .replace(/}/g, '\\}')
-    .replace(/\r?\n/g, '\\N');
-}
-
-function hexToAssColor(hex: string) {
-  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  const safe = match ? match[1] : '3B82F6';
-  const red = safe.slice(0, 2);
-  const green = safe.slice(2, 4);
-  const blue = safe.slice(4, 6);
-  return `&H00${blue}${green}${red}`;
-}
-
-function buildKaraokeText(duration: number, text: string) {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return '';
-
-  const totalCentis = Math.max(1, Math.round(duration * 100));
-  const weights = words.map((word) => word.length + 1);
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-
-  let previousCentis = 0;
-
-  return words
-    .map((word, index) => {
-      const cumulativeWeight = weights
-        .slice(0, index + 1)
-        .reduce((sum, weight) => sum + weight, 0);
-      const endCentis =
-        index === words.length - 1
-          ? totalCentis
-          : Math.round((totalCentis * cumulativeWeight) / totalWeight);
-      const wordCentis = Math.max(1, endCentis - previousCentis);
-      previousCentis = endCentis;
-
-      return `{\\kf${wordCentis}}${escapeAssText(word)}`;
-    })
-    .join(' ');
 }
 
 function getBrollDimensions(options: ProcessingOptions) {
@@ -302,126 +246,6 @@ function buildFaceCropFilter(
   return `crop=${cropWidth}:${height}:${expression}:0`;
 }
 
-function buildAssSubtitles(clip: Clip, options: ProcessingOptions) {
-  const cuts: TimeRange[] = getRelativeCuts(
-    clip,
-    clip.removeFiller ?? false,
-    options.removeSilences
-  );
-  const fillerCuts = clip.removeFiller ? clip.fillerCuts ?? [] : [];
-
-  const segments: TranscriptSegment[] = (options.transcript ?? [])
-    .filter(
-      (segment) =>
-        segment.end > clip.startTime &&
-        segment.start < clip.endTime &&
-        segment.text.trim().length > 0
-    )
-    .map((segment) => {
-      const remainingWords = segment.words?.length
-        ? segment.words.filter(
-            (word) =>
-              word.end > clip.startTime &&
-              word.start < clip.endTime &&
-              ![...(clip.cutRanges ?? []), ...fillerCuts].some(
-                (range) => word.end > range.start && word.start < range.end
-              )
-          )
-        : null;
-
-      const text = (
-        remainingWords
-          ? remainingWords.map((word) => word.word).join(' ')
-          : segment.text
-      )
-        .trim()
-        .replace(/\s+/g, ' ');
-
-      const rawStart = Math.max(0, segment.start - clip.startTime);
-      const rawEnd = Math.max(
-        0,
-        Math.min(segment.end, clip.endTime) - clip.startTime
-      );
-
-      return {
-        start: mapTimeThroughCuts(rawStart, cuts),
-        end: mapTimeThroughCuts(rawEnd, cuts),
-        text,
-      };
-    })
-    .filter((segment) => segment.text.length > 0 && segment.end > segment.start);
-
-  const hookText = clip.hookText?.trim();
-  const introText = options.introText?.trim();
-  const outroText = options.outroText?.trim();
-  if (segments.length === 0 && !hookText && !introText && !outroText) {
-    return null;
-  }
-
-  const fontName = options.brandFont.replace(/[,\r\n]/g, ' ').trim() || 'Inter';
-  const fontSize = options.resolution === '4K' ? 88 : 72;
-  const highlightColor = hexToAssColor(options.brandColor);
-  const marginV = options.targetAspectRatio === '9:16' ? 160 : 96;
-  const removedDuration = cuts.reduce(
-    (total, cut) => total + (cut.end - cut.start),
-    0
-  );
-  const outputDuration = Math.max(0.5, clip.duration - removedDuration);
-
-  const events = segments.map((segment) => {
-    const text = buildKaraokeText(segment.end - segment.start, segment.text);
-    return `Dialogue: 0,${toAssTime(segment.start)},${toAssTime(
-      segment.end
-    )},Brand,,0,0,0,,${text}`;
-  });
-
-  if (hookText) {
-    const hookFontSize = options.resolution === '4K' ? 116 : 92;
-    const hookEnd = Math.min(3, outputDuration);
-    events.unshift(
-      `Dialogue: 2,${toAssTime(0)},${toAssTime(
-        hookEnd
-      )},Brand,,0,0,0,,{\an5\fs${hookFontSize}\b1}${escapeAssText(hookText)}`
-    );
-  }
-
-  if (introText) {
-    const introEnd = Math.min(2.5, outputDuration);
-    events.unshift(
-      `Dialogue: 1,${toAssTime(0)},${toAssTime(
-        introEnd
-      )},Brand,,0,0,0,,{\\an8}${escapeAssText(introText)}`
-    );
-  }
-
-  if (outroText) {
-    const outroStart = Math.max(0, outputDuration - 2.5);
-    events.push(
-      `Dialogue: 1,${toAssTime(outroStart)},${toAssTime(
-        outputDuration
-      )},Brand,,0,0,0,,{\\an8}${escapeAssText(outroText)}`
-    );
-  }
-
-  return [
-    '[Script Info]',
-    'ScriptType: v4.00+',
-    'WrapStyle: 2',
-    'PlayResX: 1080',
-    'PlayResY: 1920',
-    'ScaledBorderAndShadow: yes',
-    '',
-    '[V4+ Styles]',
-    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-    `Style: Brand,${fontName},${fontSize},&H00FFFFFF,${highlightColor},&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,6,2,2,64,64,${marginV},1`,
-    '',
-    '[Events]',
-    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
-    ...events,
-    '',
-  ].join('\n');
-}
-
 export class KutlassProcessor implements IVideoProcessor {
   private environmentReady = false;
 
@@ -529,7 +353,7 @@ export class KutlassProcessor implements IVideoProcessor {
       else if (cropFilter) filters.push(cropFilter);
       if (assContent) {
         await ffmpeg.writeFile(subtitleName, new TextEncoder().encode(assContent));
-        filters.push(`ass=${subtitleName}`);
+        filters.push(`subtitles=${subtitleName}`);
       }
 
       const audioFilters =
@@ -758,7 +582,26 @@ export class KutlassProcessor implements IVideoProcessor {
       '[KutlassProcessor] Browser-based rendering is running. Keep this tab open until processing completes.'
     );
 
-    const assContent = buildAssSubtitles(clip, options);
+    const captionCuts = getRelativeCuts(
+      clip,
+      clip.removeFiller ?? false,
+      options.removeSilences
+    );
+    const assContent = buildKaraokeAss({
+      transcript: options.transcript ?? [],
+      clipStart: clip.startTime,
+      clipEnd: clip.endTime,
+      duration: clip.duration,
+      cuts: captionCuts,
+      resolution: options.resolution,
+      targetAspectRatio: options.targetAspectRatio,
+      brandColor: options.brandColor,
+      brandFont: options.brandFont,
+      karaoke: options.karaokeCaptions,
+      hookText: clip.hookText,
+      introText: options.introText,
+      outroText: options.outroText,
+    });
     let cropFilter: string | null = null;
     let splitFilter: string | null = null;
 

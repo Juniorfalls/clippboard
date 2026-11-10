@@ -63,6 +63,7 @@ export interface ProcessingOptions {
   brandLogo?: string;
   addWatermark: boolean;
   removeSilences: boolean;
+  karaokeCaptions: boolean;
   introText?: string;
   outroText?: string;
   transcript?: TranscriptSegment[];
