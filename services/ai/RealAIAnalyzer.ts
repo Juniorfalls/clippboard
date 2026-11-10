@@ -2,7 +2,7 @@ import type { AIAnalysisResult, IAIAnalyzer } from "@/types/video";
 
 type ErrorResponse = { error?: string };
 
-const MAX_AUDIO_SIZE = 4 * 1024 * 1024;
+const MAX_AUDIO_SIZE = 24 * 1024 * 1024;
 
 function getErrorMessage(data: unknown, fallback: string) {
   if (
@@ -18,7 +18,11 @@ function getErrorMessage(data: unknown, fallback: string) {
 }
 
 export class RealAIAnalyzer implements IAIAnalyzer {
-  async analyze(audioFile: File, prompt: string): Promise<AIAnalysisResult> {
+  async analyze(
+    audioFile: File,
+    prompt: string,
+    chunkStart = 0
+  ): Promise<AIAnalysisResult> {
     if (audioFile.size > MAX_AUDIO_SIZE) {
       throw new Error(
         "The extracted audio is too large for the analysis service. Try a shorter video."
@@ -28,6 +32,7 @@ export class RealAIAnalyzer implements IAIAnalyzer {
     const body = new FormData();
     body.append("audioFile", audioFile);
     body.append("prompt", prompt);
+    body.append("chunkStart", String(chunkStart));
 
     let response: Response;
 

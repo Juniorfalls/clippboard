@@ -13,7 +13,10 @@ import { ClipGallery } from "@/components/ClipGallery";
 import type { PublishPayload } from "@/components/PublishModal";
 import { getAIAnalyzer } from "@/services/ai";
 import { getVideoProcessor } from "@/services/video";
-import { extractAudio } from "@/lib/extract-audio";
+import {
+  AUDIO_CHUNK_SECONDS,
+  extractAndChunkAudio,
+} from "@/services/video/extract-audio-chunks";
 import { loadBrandKit, type BrandTemplate } from "@/lib/brand-kit";
 import { STARTER_CLIP_LIMIT, type Plan } from "@/lib/plans";
 import { createClient } from "@/utils/supabase/client";
@@ -98,6 +101,7 @@ export function WorkspaceDashboard({
   const [templates, setTemplates] = useState<BrandTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("none");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState<string | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [progressById, setProgressById] = useState<Record<string, number>>({});
   const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
@@ -258,36 +262,60 @@ export function WorkspaceDashboard({
     setIsProcessing(true);
     setClips([]);
     setProgressById({});
+    setAnalysisStatus("Preparing audio...");
 
     const statusToastId = "analysis-status";
     toast.loading("Extracting audio...", { id: statusToastId });
 
     try {
-      const audioFile = await extractAudio(uploadedFile, (progress) => {
+      const chunks = await extractAndChunkAudio(uploadedFile, (progress) => {
+        const percent = Math.round(progress * 100);
+        setAnalysisStatus(`Extracting audio... ${percent}%`);
         toast.loading("Extracting audio...", {
           id: statusToastId,
-          description: `${Math.round(progress * 100)}% complete`,
+          description: `${percent}% complete`,
         });
       });
 
-      toast.loading("Transcribing audio...", {
-        id: statusToastId,
-        description: "Sending the audio track to Whisper.",
-      });
+      if (chunks.length === 0) {
+        throw new Error("No audio chunks were created from this video.");
+      }
 
       const analyzer = getAIAnalyzer();
-      const analysis = await analyzer.analyze(audioFile, prompt);
+      const collectedClips: Clip[] = [];
+      const collectedTranscript: TranscriptSegment[] = [];
+
+      for (const [index, chunk] of chunks.entries()) {
+        const label = `Transcribing chunk ${index + 1} of ${chunks.length}...`;
+        setAnalysisStatus(label);
+        toast.loading(label, {
+          id: statusToastId,
+          description: "Whisper is transcribing this section.",
+        });
+
+        const chunkAnalysis = await analyzer.analyze(
+          chunk,
+          prompt,
+          index * AUDIO_CHUNK_SECONDS
+        );
+        collectedClips.push(...chunkAnalysis.clips);
+        collectedTranscript.push(...(chunkAnalysis.transcript ?? []));
+      }
+
+      const analysis = {
+        clips: collectedClips
+          .sort((a, b) => b.engagementScore - a.engagementScore)
+          .slice(0, 10),
+        transcript: collectedTranscript.sort((a, b) => a.start - b.start),
+      };
 
       if (analysis.clips.length === 0) {
         throw new Error("No memorable moments were found in this video.");
       }
 
-      if (analysis.clips.length !== 10) {
-        throw new Error("The AI did not return 10 clips. Please try again.");
-      }
-
+      setAnalysisStatus("Rendering clips...");
       setClips(analysis.clips);
-      setTranscript(analysis.transcript ?? []);
+      setTranscript(analysis.transcript);
       toast.dismiss(statusToastId);
 
       if (activeTeamId) {
@@ -389,7 +417,7 @@ export function WorkspaceDashboard({
       }
 
       if (failedCount === 0) {
-        toast.success("All 10 clips generated successfully!");
+        toast.success(`All ${analysis.clips.length} clips generated successfully!`);
       } else {
         toast.error("Some clips could not be generated", {
           description: `${failedCount} of ${analysis.clips.length} clips failed.`,
@@ -402,6 +430,7 @@ export function WorkspaceDashboard({
       });
     } finally {
       setIsProcessing(false);
+      setAnalysisStatus(null);
       toast.dismiss(statusToastId);
     }
   }
@@ -829,7 +858,7 @@ export function WorkspaceDashboard({
           <h2 className="text-[24px] font-bold leading-[1.25]">Your clips</h2>
           {isProcessing && (
             <p className="text-[14px] font-semibold text-soft-black/60">
-              Browser rendering in progress. Please keep tab open.
+              {analysisStatus ?? "Browser rendering in progress. Please keep tab open."}
             </p>
           )}
         </div>

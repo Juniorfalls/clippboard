@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_PROMPT_LENGTH = 500;
-const MAX_AUDIO_SIZE = 4 * 1024 * 1024;
+const MAX_AUDIO_SIZE = 24 * 1024 * 1024;
 
 const BRollSchema = z.object({
   query: z.string().trim().min(1).max(120),
@@ -172,6 +172,12 @@ export async function POST(request: Request) {
     );
   }
 
+  const chunkStartValue = Number(form.get("chunkStart") ?? 0);
+  const chunkStart =
+    Number.isFinite(chunkStartValue) && chunkStartValue > 0
+      ? roundToHundredths(chunkStartValue)
+      : 0;
+
   const promptValue = form.get("prompt");
   const prompt =
     typeof promptValue === "string" && promptValue.trim().length > 0
@@ -236,7 +242,20 @@ export async function POST(request: Request) {
       })
       .filter((segment) => segment.text.length > 0 && segment.end > segment.start);
 
-    transcript = buildTranscript(transcription.segments, transcription.text);
+    if (chunkStart > 0) {
+      transcriptSegments = transcriptSegments.map((segment) => ({
+        ...segment,
+        start: roundToHundredths(segment.start + chunkStart),
+        end: roundToHundredths(segment.end + chunkStart),
+        words: segment.words?.map((word) => ({
+          ...word,
+          start: roundToHundredths(word.start + chunkStart),
+          end: roundToHundredths(word.end + chunkStart),
+        })),
+      }));
+    }
+
+    transcript = buildTranscript(transcriptSegments, transcription.text);
   } catch (error) {
     console.error("[analyze] Whisper transcription failed", error);
     return errorResponse(

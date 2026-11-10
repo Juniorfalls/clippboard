@@ -78,7 +78,11 @@ export interface AIAnalysisResult {
 
 // The contract for finding moments
 export interface IAIAnalyzer {
-  analyze(file: File, prompt: string): Promise<AIAnalysisResult>;
+  analyze(
+    file: File,
+    prompt: string,
+    chunkStart?: number
+  ): Promise<AIAnalysisResult>;
 }
 
 // The contract for rendering the video
