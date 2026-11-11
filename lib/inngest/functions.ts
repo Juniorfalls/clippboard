@@ -13,7 +13,7 @@ import {
   extractAudioChunks,
   SERVER_AUDIO_CHUNK_SECONDS,
 } from "@/lib/audio/server-chunks";
-import { createAdminClient } from "@/utils/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   videoProcessingChannel,
   type VideoProcessingUpdate,
@@ -67,6 +67,7 @@ export const processVideo = inngest.createFunction(
       if (!jobId) return;
 
       await step.run("mark-job-failed", async () => {
+        console.log("[inngest] Step: Marking job as failed...", { jobId });
         const admin = createAdminClient();
         const { error } = await admin
           .from("video_jobs")
@@ -102,6 +103,7 @@ export const processVideo = inngest.createFunction(
     }
 
     await step.run("mark-job-processing", async () => {
+      console.log("[inngest] Step 1: Marking job as processing...", { jobId });
       const admin = createAdminClient();
       const { error } = await admin.from("video_jobs").upsert(
         {
@@ -125,6 +127,9 @@ export const processVideo = inngest.createFunction(
     });
 
     const audioChunks = await step.run("download-and-chunk-audio", async () => {
+      console.log("[inngest] Step 2: Downloading video and extracting audio...", {
+        jobId,
+      });
       const download = await downloadVideoToTemp(blobUrl, jobId);
 
       try {
@@ -170,6 +175,10 @@ export const processVideo = inngest.createFunction(
       const segments = await step.run(
         `transcribe-chunk-${chunk.index + 1}`,
         async () => {
+          console.log(
+            `[inngest] Step 3: Transcribing chunk ${chunk.index + 1} of ${audioChunks.length}...`,
+            { jobId }
+          );
           const response = await fetch(chunk.url, { cache: "no-store" });
           if (!response.ok) {
             throw new Error(`Could not download audio chunk ${chunk.index + 1}.`);
@@ -213,6 +222,10 @@ export const processVideo = inngest.createFunction(
     });
 
     const clips = await step.run("find-clips", async () => {
+      console.log("[inngest] Step 4: Analyzing transcript with GPT-4o...", {
+        jobId,
+        segments: transcriptSegments.length,
+      });
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {
         throw new Error("OPENAI_API_KEY is not configured.");
@@ -229,6 +242,10 @@ export const processVideo = inngest.createFunction(
     });
 
     await step.run("save-clips", async () => {
+      console.log("[inngest] Step 5: Saving clips to Supabase...", {
+        jobId,
+        clips: clips.length,
+      });
       const admin = createAdminClient();
 
       const { error: deleteError } = await admin
@@ -261,6 +278,7 @@ export const processVideo = inngest.createFunction(
     });
 
     await step.run("mark-job-completed", async () => {
+      console.log("[inngest] Step 6: Marking job as completed...", { jobId });
       const admin = createAdminClient();
       const { error } = await admin
         .from("video_jobs")

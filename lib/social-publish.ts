@@ -245,7 +245,7 @@ export async function publishYouTube(
 }
 
 export async function persistRefreshedTokens(
-  admin: ReturnType<typeof import("@/utils/supabase/admin").createAdminClient>,
+  admin: ReturnType<typeof import("@/lib/supabase/admin").createAdminClient>,
   accountId: string,
   tokens: TokenPair
 ) {
