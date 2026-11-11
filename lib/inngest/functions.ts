@@ -3,11 +3,16 @@ import { put } from "@vercel/blob";
 import OpenAI from "openai";
 import { inngest } from "@/lib/inngest/client";
 import {
-  analyzeTranscript,
+  ANALYSIS_PROVIDERS,
+  analyzeTranscriptWithProvider,
   buildTranscriptText,
   offsetTranscriptSegments,
   segmentsFromTranscription,
 } from "@/lib/ai/video-analysis";
+import {
+  isRateLimitError,
+  withExponentialBackoff,
+} from "@/lib/ai/rate-limit-handler";
 import {
   downloadVideoToTemp,
   extractAudioChunks,
@@ -18,7 +23,7 @@ import {
   videoProcessingChannel,
   type VideoProcessingUpdate,
 } from "@/lib/inngest/realtime";
-import type { TranscriptSegment } from "@/types/video";
+import type { Clip, TranscriptSegment } from "@/types/video";
 
 type VideoProcessEvent = {
   jobId: string;
@@ -39,6 +44,88 @@ function groqTranscriptionClient() {
     apiKey,
     baseURL: "https://api.groq.com/openai/v1",
   });
+}
+
+const ANALYSIS_FALLBACK_CHAIN = [
+  ANALYSIS_PROVIDERS[0],
+  ANALYSIS_PROVIDERS[1],
+  ANALYSIS_PROVIDERS[2],
+] as const;
+
+export async function analyzeTranscriptWithFallback(
+  transcript: string,
+  prompt = "Find the 10 most engaging, self-contained moments in this transcript.",
+  transcriptSegments: TranscriptSegment[] = []
+): Promise<Clip[]> {
+  let lastError: unknown;
+
+  for (let index = 0; index < ANALYSIS_FALLBACK_CHAIN.length; index += 1) {
+    const provider = ANALYSIS_FALLBACK_CHAIN[index];
+    const nextProvider = ANALYSIS_FALLBACK_CHAIN[index + 1];
+    const apiKey = process.env[provider.key];
+
+    if (!apiKey) {
+      console.warn(
+        `[ai] ${provider.name} skipped: ${provider.key} is not configured. ` +
+          (nextProvider
+            ? `Falling back to ${nextProvider.name}...`
+            : "No providers remain.")
+      );
+      lastError = new Error(`${provider.key} is not configured.`);
+      continue;
+    }
+
+    console.log(
+      `[ai] Attempting ${provider.name} (${provider.model}) with exponential backoff...`
+    );
+
+    try {
+      const clips = await withExponentialBackoff(
+        () =>
+          analyzeTranscriptWithProvider(
+            provider,
+            transcript,
+            prompt,
+            transcriptSegments
+          ),
+        {
+          maxRetries: 3,
+          baseDelayMs: 1_000,
+          maxDelayMs: 32_000,
+          label: `${provider.name} analysis`,
+        }
+      );
+
+      console.log(`[ai] ${provider.name} analysis succeeded.`);
+      return clips;
+    } catch (error) {
+      lastError = error;
+      const rateLimited = isRateLimitError(error);
+      const fallbackMessage = nextProvider
+        ? `Falling back to ${nextProvider.name}...`
+        : "No providers remain.";
+
+      if (provider.name === "OpenRouter" && rateLimited) {
+        console.warn(
+          "OpenRouter rate limit hit, falling back to Groq LLM..."
+        );
+      } else if (rateLimited) {
+        console.warn(
+          `[ai] ${provider.name} exhausted its retries after 429 rate limits. ${fallbackMessage}`
+        );
+      } else {
+        console.warn(
+          `[ai] ${provider.name} failed with a non-429 error. ${fallbackMessage}`,
+          error instanceof Error ? error.message : error
+        );
+      }
+    }
+  }
+
+  console.error("[ai] All AI analysis providers failed.", lastError);
+  throw new Error(
+    "AI analysis is temporarily busy. Please try again in a minute."
+  );
 }
 
 async function publishUpdate(
@@ -226,7 +313,11 @@ export const processVideo = inngest.createFunction(
         segments: transcriptSegments.length,
       });
 
-      return analyzeTranscript(transcript, prompt, transcriptSegments);
+      return analyzeTranscriptWithFallback(
+        transcript,
+        prompt,
+        transcriptSegments
+      );
     });
 
     await step.run("save-clips", async () => {
