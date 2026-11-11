@@ -73,6 +73,7 @@ const REALTIME_STATUS_MESSAGES: Partial<
   uploading: "Uploading secure audio...",
   transcribing: "AI is transcribing your video...",
   analyzing: "AI is finding the best moments...",
+  waiting_for_ai: "AI is busy, queued for retry...",
   rendering: "Rendering final clips in your browser...",
 };
 
@@ -85,7 +86,12 @@ type TeamProject = {
 };
 
 type VideoJobRow = {
-  status: "queued" | "processing" | "completed" | "failed";
+  status:
+    | "queued"
+    | "processing"
+    | "waiting_for_ai"
+    | "completed"
+    | "failed";
   error: string | null;
   transcript: TranscriptSegment[] | null;
 };
@@ -279,7 +285,10 @@ export function WorkspaceDashboard({
     setAnalysisStatus(displayMessage);
     toast.loading(displayMessage, {
       id: "analysis-status",
-      description: "Processing in the background.",
+      description:
+        update.stage === "waiting_for_ai"
+          ? "Your job is still active and will resume automatically."
+          : "Processing in the background.",
     });
   }, [activeJobId, realtime.messages.last]);
 
@@ -301,6 +310,15 @@ export function WorkspaceDashboard({
 
       if (data.status === "completed") {
         startFinishJob(jobId);
+        return;
+      }
+
+      if (data.status === "waiting_for_ai") {
+        setAnalysisStatus("AI is busy, queued for retry...");
+        toast.loading("AI is busy, queued for retry...", {
+          id: "analysis-status",
+          description: "Your job is still active and will resume automatically.",
+        });
         return;
       }
 

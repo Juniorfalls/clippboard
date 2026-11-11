@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { RetryAfterError } from "inngest";
 import { inngest } from "@/lib/inngest/client";
 import {
   ANALYSIS_PROVIDERS,
@@ -46,12 +47,60 @@ const ANALYSIS_FALLBACK_CHAIN = [
   ANALYSIS_PROVIDERS[2],
 ] as const;
 
+async function markJobAnalysisProcessing(jobId: string) {
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("video_jobs")
+      .update({
+        status: "processing",
+        error: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error("[ai] Could not mark job as processing", error);
+  }
+}
+
+async function markJobWaitingForAi(jobId: string) {
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("video_jobs")
+      .update({
+        status: "waiting_for_ai",
+        error: "AI providers are rate limited. Retrying automatically.",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error("[ai] Could not mark job as waiting for AI", error);
+  }
+}
+
 export async function analyzeTranscriptWithFallback(
   transcript: string,
   prompt = "Find the 10 most engaging, self-contained moments in this transcript.",
-  transcriptSegments: TranscriptSegment[] = []
+  transcriptSegments: TranscriptSegment[] = [],
+  jobId?: string
 ): Promise<Clip[]> {
   let lastError: unknown;
+  let sawRateLimit = false;
+  let sawNonRateLimit = false;
+
+  if (jobId) {
+    await markJobAnalysisProcessing(jobId);
+    await publishUpdate(jobId, {
+      stage: "analyzing",
+      message: "AI is finding the best moments...",
+      progress: 75,
+    });
+  }
 
   for (let index = 0; index < ANALYSIS_FALLBACK_CHAIN.length; index += 1) {
     const provider = ANALYSIS_FALLBACK_CHAIN[index];
@@ -95,6 +144,11 @@ export async function analyzeTranscriptWithFallback(
     } catch (error) {
       lastError = error;
       const rateLimited = isRateLimitError(error);
+      if (rateLimited) {
+        sawRateLimit = true;
+      } else {
+        sawNonRateLimit = true;
+      }
       const fallbackMessage = nextProvider
         ? `Falling back to ${nextProvider.name}...`
         : "No providers remain.";
@@ -116,10 +170,36 @@ export async function analyzeTranscriptWithFallback(
     }
   }
 
+  const allRateLimited = sawRateLimit && !sawNonRateLimit;
+
+  if (allRateLimited) {
+    console.warn(
+      "[ai] All configured providers are rate limited. Asking Inngest to retry after 30s."
+    );
+
+    if (jobId) {
+      await markJobWaitingForAi(jobId);
+      await publishUpdate(jobId, {
+        stage: "waiting_for_ai",
+        message: "AI is busy, queued for retry...",
+        progress: 75,
+      });
+    }
+
+    throw new RetryAfterError(
+      "AI rate limit hit, retrying...",
+      "30s",
+      { cause: lastError }
+    );
+  }
+
   console.error("[ai] All AI analysis providers failed.", lastError);
-  throw new Error(
-    "AI analysis is temporarily busy. Please try again in a minute."
-  );
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error("AI analysis failed. Please try again.");
 }
 
 async function publishUpdate(
@@ -278,7 +358,8 @@ export const processVideo = inngest.createFunction(
       return analyzeTranscriptWithFallback(
         transcript,
         prompt,
-        transcriptSegments
+        transcriptSegments,
+        jobId
       );
     });
 
@@ -325,6 +406,7 @@ export const processVideo = inngest.createFunction(
         .from("video_jobs")
         .update({
           status: "completed",
+          error: null,
           transcript: transcriptSegments,
           updated_at: new Date().toISOString(),
         })

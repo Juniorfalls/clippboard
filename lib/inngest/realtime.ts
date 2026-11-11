@@ -6,6 +6,7 @@ export type VideoProcessingUpdate = {
     | "uploading"
     | "transcribing"
     | "analyzing"
+    | "waiting_for_ai"
     | "rendering"
     | "complete"
     | "failed";
