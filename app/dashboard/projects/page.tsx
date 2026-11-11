@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FolderOpen, Loader2, Plus } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
+import {
+  AlertTriangle,
+  FolderOpen,
+  Loader2,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/utils/supabase/client";
@@ -36,6 +44,8 @@ const STATUS_STYLES: Record<string, string> = {
 export default function ProjectsPage() {
   const [jobs, setJobs] = useState<VideoJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [jobToDelete, setJobToDelete] = useState<VideoJob | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +89,43 @@ export default function ProjectsPage() {
       cancelled = true;
     };
   }, []);
+
+  async function handleDeleteProject() {
+    if (!jobToDelete || isDeleting) return;
+
+    setIsDeleting(true);
+
+    try {
+      const supabase = createClient();
+      const { error: clipsError } = await supabase
+        .from("clips")
+        .delete()
+        .eq("job_id", jobToDelete.id);
+
+      if (clipsError) throw clipsError;
+
+      const { error: jobError } = await supabase
+        .from("video_jobs")
+        .delete()
+        .eq("id", jobToDelete.id);
+
+      if (jobError) throw jobError;
+
+      setJobs((previous) =>
+        previous.filter((job) => job.id !== jobToDelete.id)
+      );
+      setJobToDelete(null);
+      toast.success("Project deleted successfully.");
+    } catch (error) {
+      console.error("[projects] Could not delete project", error);
+      toast.error("Could not delete project", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -138,14 +185,27 @@ export default function ProjectsPage() {
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2 bg-brand-blue-light text-brand-blue">
                         <FolderOpen className="h-5 w-5" aria-hidden />
                       </span>
-                      <span
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-[11px] font-bold",
-                          statusStyle
-                        )}
-                      >
-                        {status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full border px-2.5 py-1 text-[11px] font-bold",
+                            statusStyle
+                          )}
+                        >
+                          {status}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setJobToDelete(job)}
+                          aria-label={`Delete project ${job.source_name || "Untitled video"}`}
+                          className={cn(
+                            "flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors duration-200 hover:bg-red-50 hover:text-red-500",
+                            focusRing
+                          )}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="min-w-0">
@@ -169,6 +229,85 @@ export default function ProjectsPage() {
           </ul>
         </section>
       )}
+
+      <Dialog.Root
+        open={Boolean(jobToDelete)}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) setJobToDelete(null);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-soft-black/50 backdrop-blur-sm" />
+          <Dialog.Content
+            className={cn(
+              "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3 border border-border-gray bg-white p-6 shadow-xl",
+              focusRing
+            )}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2 bg-red-50 text-red-600">
+                <AlertTriangle className="h-6 w-6" aria-hidden />
+              </span>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  aria-label="Close delete confirmation"
+                  disabled={isDeleting}
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-full border border-border-gray bg-warm-white text-soft-black duration-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50",
+                    focusRing
+                  )}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            <Dialog.Title className="mt-5 text-[24px] font-bold leading-[1.25] text-soft-black">
+              Delete this project?
+            </Dialog.Title>
+            <Dialog.Description className="mt-2 text-[14px] leading-relaxed text-soft-black/60">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-soft-black">
+                {jobToDelete?.source_name || "this project"}
+              </span>
+              ? This action cannot be undone.
+            </Dialog.Description>
+
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-5 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white disabled:cursor-not-allowed disabled:opacity-50",
+                    focusRing
+                  )}
+                >
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                onClick={() => void handleDeleteProject()}
+                disabled={isDeleting}
+                aria-busy={isDeleting}
+                className={cn(
+                  "inline-flex items-center justify-center gap-2 rounded-2 bg-red-600 px-5 py-2.5 text-[14px] font-semibold text-white duration-200 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60",
+                  focusRing
+                )}
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                )}
+                {isDeleting ? "Deleting..." : "Delete project"}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }
