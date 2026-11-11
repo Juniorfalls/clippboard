@@ -70,10 +70,7 @@ export function cleanAndParseJSON(content: string): unknown | null {
     }
   }
 
-  console.error("[ai] Failed to parse AI JSON response", {
-    rawText: content,
-    cleanedText: fenced,
-  });
+  console.error("Groq Raw Output:", text);
   return null;
 }
 
@@ -162,7 +159,7 @@ export const ANALYSIS_PROVIDERS = [
 export type AnalysisProvider = (typeof ANALYSIS_PROVIDERS)[number];
 
 const STRICT_JSON_INSTRUCTION =
-  'CRITICAL: You must return ONLY a valid JSON object. Do not include markdown formatting, code blocks (```json), explanations, or any text before or after the JSON. The JSON must match this exact structure: { "clips": [ { "startTime": number, "endTime": number, "title": string, "engagementScore": number, "viralityReason": string } ] }';
+  'You must return a valid JSON object. The JSON must match this exact structure: { "clips": [ { "startTime": number, "endTime": number, "title": string, "engagementScore": number, "viralityReason": string } ] }. CRITICAL: Only return the JSON. Do not include markdown formatting, code blocks (```json), explanations, or conversational text before or after the JSON.';
 
 const SYSTEM_PROMPT =
   `You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought and be between 15 and 90 seconds long. For every clip, write a short, punchy on-screen hook of 3 to 6 words that earns attention in the first second. The hookText must be plain spoken-style text with no quotes, hashtags, emojis, or trailing punctuation. Rate each clip's engagement potential from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. For every clip, write a viralityReason: one concise sentence explaining the score, such as a strong emotional hook in the first 3 seconds or high shareability from a bold take. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. ${STRICT_JSON_INSTRUCTION} Return JSON only.`;

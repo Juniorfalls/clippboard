@@ -166,11 +166,20 @@ export async function analyzeTranscriptWithFallback(
     } catch (error) {
       lastError = error;
       const status = getErrorStatus(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const isJsonFailure =
+        status === 400 || /json|failed to validate/i.test(errorMessage);
 
-      if (provider.name === "Groq" && status === 400) {
+      if (provider.name === "Groq" && isJsonFailure) {
         console.error(
           "Groq JSON Failure. Raw Output:",
           getGroqFailedGeneration(error)
+        );
+        console.warn(
+          nextProvider
+            ? `Groq failed, falling back to ${nextProvider.name}...`
+            : "Groq failed. No fallback providers remain."
         );
       }
 
