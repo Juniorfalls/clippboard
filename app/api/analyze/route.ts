@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { inngest } from "@/lib/inngest/client";
 import { normalizePlan, STARTER_CLIP_LIMIT } from "@/lib/plans";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
@@ -92,33 +93,41 @@ export async function POST(request: Request) {
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
   ).toISOString();
 
-  const [{ data: profile, error: profileError }, { count, error: countError }] =
-    await Promise.all([
-      supabase
+  let plan = normalizePlan(undefined);
+  let clipsUsed = 0;
+
+  try {
+    const admin = createAdminClient();
+    const [
+      { data: profile, error: profileError },
+      { count, error: countError },
+    ] = await Promise.all([
+      admin
         .from("profiles")
         .select("plan")
         .eq("id", user.id)
         .maybeSingle(),
-      supabase
+      admin
         .from("clips")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .gte("created_at", monthStart),
     ]);
 
-  if (profileError || countError) {
-    console.error(
-      "[analyze] Could not verify plan usage",
-      profileError ?? countError
-    );
-    return errorResponse(
-      "Could not verify your plan usage. Please try again.",
-      500
-    );
+    if (profileError) throw profileError;
+    if (countError) throw countError;
+
+    plan = normalizePlan(profile?.plan);
+    clipsUsed = count ?? 0;
+  } catch (error) {
+    console.error("[analyze] Could not verify plan usage", error);
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
+    return errorResponse(`Error verifying plan usage: ${message}`, 500);
   }
 
-  const plan = normalizePlan(profile?.plan);
-  const clipsUsed = count ?? 0;
   const starterRemaining = Math.max(0, STARTER_CLIP_LIMIT - clipsUsed);
 
   if (plan === "starter" && starterRemaining === 0) {
