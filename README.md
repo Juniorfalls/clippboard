@@ -75,7 +75,9 @@ Raw source video is not uploaded to Clippboard servers for rendering. Optional s
    ```bash
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   OPENAI_API_KEY=your_openai_api_key
+   GROQ_API_KEY=your_groq_api_key
+   GEMINI_API_KEY=your_gemini_api_key
+   CEREBRAS_API_KEY=your_cerebras_api_key
    ```
 
 3. Apply the database migrations:
@@ -102,7 +104,9 @@ Raw source video is not uploaded to Clippboard servers for rendering. Optional s
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous client key |
-| `OPENAI_API_KEY` | Whisper transcription and GPT-4o analysis |
+| `GROQ_API_KEY` | Groq Whisper transcription and LLM fallback |
+| `GEMINI_API_KEY` | Primary free AI clip analysis |
+| `CEREBRAS_API_KEY` | Secondary AI clip-analysis fallback |
 | `BLOB_READ_WRITE_TOKEN` | Direct browser-to-Vercel-Blob uploads |
 | `INNGEST_EVENT_KEY` | Queue background video-processing jobs |
 
@@ -118,6 +122,9 @@ INNGEST_EVENT_KEY=your_inngest_event_key
 INNGEST_SIGNING_KEY=signkey_your_inngest_signing_key
 PAYSTACK_SECRET_KEY=sk_live_or_test_key
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_or_test_key
+GROQ_API_KEY=your_groq_api_key
+GEMINI_API_KEY=your_gemini_api_key
+CEREBRAS_API_KEY=your_cerebras_api_key
 
 TOKEN_ENCRYPTION_KEY=your_32_byte_base64_key
 TIKTOK_CLIENT_KEY=your_tiktok_client_key
@@ -129,12 +136,13 @@ YOUTUBE_PRIVACY_STATUS=private
 CRON_SECRET=your_cron_secret
 PEXELS_API_KEY=your_pexels_api_key
 
-OPENAI_BASE_URL=your_openai_compatible_base_url
-OPENAI_MODEL=gpt-4o
+# Optional: voiceover and MCP tools only
+OPENAI_API_KEY=your_openai_api_key
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
+OPENAI_BASE_URL=your_openai_compatible_base_url
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is required for Paystack webhooks, scheduled publishing, and server-side administrative operations. `BLOB_READ_WRITE_TOKEN` lets the browser upload source videos directly to Vercel Blob, bypassing serverless request-size limits. `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` connect the app to Inngest Cloud so transcription and AI analysis run outside the request timeout. `TOKEN_ENCRYPTION_KEY` encrypts social OAuth tokens at rest and must remain stable after accounts are connected.
+`SUPABASE_SERVICE_ROLE_KEY` is required for Paystack webhooks, scheduled publishing, and server-side administrative operations. `BLOB_READ_WRITE_TOKEN` lets the browser upload source videos directly to Vercel Blob, bypassing serverless request-size limits. `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` connect the app to Inngest Cloud so transcription and AI analysis run outside the request timeout. Clip analysis falls back from Gemini to Cerebras to Groq when a free tier is exhausted; OpenAI is only needed for optional voiceover and MCP tools. `TOKEN_ENCRYPTION_KEY` encrypts social OAuth tokens at rest and must remain stable after accounts are connected.
 
 Generate an encryption key with:
 

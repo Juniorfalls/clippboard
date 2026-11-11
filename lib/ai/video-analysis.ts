@@ -41,7 +41,7 @@ const AnalysisSchema = z.object({
   clips: z.array(MomentSchema).length(10),
 });
 
-const OPENAI_RESPONSE_SCHEMA = {
+const ANALYSIS_RESPONSE_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
@@ -175,60 +175,44 @@ export function segmentsFromTranscription(
     );
 }
 
-export async function findClipsFromTranscript({
-  transcript,
-  transcriptSegments,
-  prompt,
-  apiKey,
-  baseURL,
-  model,
-}: {
-  transcript: string;
-  transcriptSegments: TranscriptSegment[];
-  prompt: string;
-  apiKey: string;
-  baseURL?: string;
-  model: string;
-}): Promise<Clip[]> {
-  const openai = new OpenAI({ apiKey, baseURL });
+const ANALYSIS_PROVIDERS = [
+  {
+    name: "Gemini",
+    key: "GEMINI_API_KEY",
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    model: "gemini-2.5-flash",
+  },
+  {
+    name: "Cerebras",
+    key: "CEREBRAS_API_KEY",
+    baseURL: "https://api.cerebras.ai/v1",
+    model: "llama-3.3-70b",
+  },
+  {
+    name: "Groq",
+    key: "GROQ_API_KEY",
+    baseURL: "https://api.groq.com/openai/v1",
+    model: "llama-3.3-70b-versatile",
+  },
+] as const;
 
-  const completion = await openai.chat.completions.create({
-    model,
-    temperature: 0.2,
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "clip_analysis",
-        strict: true,
-        schema: OPENAI_RESPONSE_SCHEMA,
-      },
-    },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought and be between 15 and 90 seconds long. For every clip, write a short, punchy on-screen hook of 3 to 6 words that earns attention in the first second. The hookText must be plain spoken-style text with no quotes, hashtags, emojis, or trailing punctuation. Rate each clip's engagement potential from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. For every clip, write a viralityReason: one concise sentence explaining the score, such as a strong emotional hook in the first 3 seconds or high shareability from a bold take. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. Return JSON only.",
-      },
-      {
-        role: "user",
-        content: `User request:\n${prompt}\n\nTranscript with timestamps in seconds:\n${transcript}\n\nReturn exactly 10 clips. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, a engagementScore from 1 to 100, a one-sentence viralityReason explaining the score, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
-      },
-    ],
-  });
+const SYSTEM_PROMPT =
+  "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought and be between 15 and 90 seconds long. For every clip, write a short, punchy on-screen hook of 3 to 6 words that earns attention in the first second. The hookText must be plain spoken-style text with no quotes, hashtags, emojis, or trailing punctuation. Rate each clip's engagement potential from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. For every clip, write a viralityReason: one concise sentence explaining the score, such as a strong emotional hook in the first 3 seconds or high shareability from a bold take. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. Return JSON only.";
 
-  const content = completion.choices[0]?.message?.content;
-  if (typeof content !== "string" || content.trim().length === 0) {
-    throw new Error("The AI service returned no moments. Please try again.");
+function providerErrorStatus(error: unknown) {
+  if (typeof error !== "object" || error === null || !("status" in error)) {
+    return undefined;
   }
 
-  const validation = AnalysisSchema.safeParse(parseJsonContent(content));
-  if (!validation.success) {
-    throw new Error(
-      "The AI returned an incomplete clip list. Please try again."
-    );
-  }
+  const status = (error as { status?: unknown }).status;
+  return typeof status === "number" ? status : undefined;
+}
 
-  const clips: Clip[] = validation.data.clips
+async function buildClips(
+  moments: z.infer<typeof AnalysisSchema>["clips"],
+  transcriptSegments: TranscriptSegment[]
+): Promise<Clip[]> {
+  const clips: Clip[] = moments
     .map((moment) => {
       const startTime = roundToHundredths(Math.max(0, moment.startTime));
       const endTime = roundToHundredths(Math.max(startTime, moment.endTime));
@@ -306,4 +290,90 @@ export async function findClipsFromTranscript({
   );
 
   return clips;
+}
+
+export async function analyzeTranscript(
+  transcript: string,
+  prompt: string,
+  transcriptSegments: TranscriptSegment[] = []
+): Promise<Clip[]> {
+  let lastError: unknown;
+
+  for (let index = 0; index < ANALYSIS_PROVIDERS.length; index += 1) {
+    const provider = ANALYSIS_PROVIDERS[index];
+    const nextProvider = ANALYSIS_PROVIDERS[index + 1];
+    const apiKey = process.env[provider.key];
+
+    if (!apiKey) {
+      console.warn(
+        `[ai] ${provider.name} skipped: ${provider.key} is not configured.` +
+          (nextProvider
+            ? ` Falling back to ${nextProvider.name}.`
+            : " No providers remain.")
+      );
+      lastError = new Error(`${provider.key} is not configured.`);
+      continue;
+    }
+
+    try {
+      const client = new OpenAI({ apiKey, baseURL: provider.baseURL });
+      const completion = await client.chat.completions.create({
+        model: provider.model,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${SYSTEM_PROMPT}
+Return a JSON object matching this schema exactly:
+${JSON.stringify(ANALYSIS_RESPONSE_SCHEMA)}`,
+          },
+          {
+            role: "user",
+            content: `User request:
+${prompt}
+
+Transcript with timestamps in seconds:
+${transcript}
+
+Return exactly 10 clips. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, a engagementScore from 1 to 100, a one-sentence viralityReason explaining the score, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
+          },
+        ],
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      if (typeof content !== "string" || content.trim().length === 0) {
+        throw new Error("The provider returned an empty response.");
+      }
+
+      const validation = AnalysisSchema.safeParse(parseJsonContent(content));
+      if (!validation.success) {
+        throw new Error("The provider returned an incomplete clip list.");
+      }
+
+      return buildClips(validation.data.clips, transcriptSegments);
+    } catch (error) {
+      lastError = error;
+      const status = providerErrorStatus(error);
+      const fallbackMessage = nextProvider
+        ? `Falling back to ${nextProvider.name}...`
+        : "No providers remain.";
+
+      if (status === 429) {
+        console.warn(
+          `[ai] ${provider.name} hit its rate limit (429). ${fallbackMessage}`
+        );
+      } else {
+        console.warn(
+          `[ai] ${provider.name} failed${status ? ` (${status})` : ""}. ${fallbackMessage}`,
+          error instanceof Error ? error.message : error
+        );
+      }
+    }
+  }
+
+  console.error("[ai] All analysis providers failed.", lastError);
+  throw new Error(
+    "AI analysis is temporarily busy. Please try again in a minute."
+  );
 }

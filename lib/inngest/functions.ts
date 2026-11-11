@@ -3,8 +3,8 @@ import { put } from "@vercel/blob";
 import OpenAI from "openai";
 import { inngest } from "@/lib/inngest/client";
 import {
+  analyzeTranscript,
   buildTranscriptText,
-  findClipsFromTranscript,
   offsetTranscriptSegments,
   segmentsFromTranscription,
 } from "@/lib/ai/video-analysis";
@@ -29,15 +29,15 @@ type VideoProcessEvent = {
   options?: Record<string, unknown>;
 };
 
-function openaiClient() {
-  const apiKey = process.env.OPENAI_API_KEY;
+function groqTranscriptionClient() {
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured.");
+    throw new Error("GROQ_API_KEY is not configured.");
   }
 
   return new OpenAI({
     apiKey,
-    baseURL: process.env.OPENAI_BASE_URL,
+    baseURL: "https://api.groq.com/openai/v1",
   });
 }
 
@@ -159,8 +159,7 @@ export const processVideo = inngest.createFunction(
       }
     });
 
-    const transcriptionModel =
-      process.env.OPENAI_TRANSCRIBE_MODEL ?? "whisper-1";
+    const transcriptionModel = "whisper-large-v3";
     const transcriptSegments: TranscriptSegment[] = [];
 
     for (const chunk of audioChunks) {
@@ -188,8 +187,8 @@ export const processVideo = inngest.createFunction(
           const file = new File([buffer], `chunk-${chunk.index + 1}.mp3`, {
             type: "audio/mpeg",
           });
-          const openai = openaiClient();
-          const transcription = await openai.audio.transcriptions.create({
+          const groq = groqTranscriptionClient();
+          const transcription = await groq.audio.transcriptions.create({
             file,
             model: transcriptionModel,
             response_format: "verbose_json",
@@ -222,23 +221,12 @@ export const processVideo = inngest.createFunction(
     });
 
     const clips = await step.run("find-clips", async () => {
-      console.log("[inngest] Step 4: Analyzing transcript with GPT-4o...", {
+      console.log("[inngest] Step 4: Analyzing transcript with free AI providers...", {
         jobId,
         segments: transcriptSegments.length,
       });
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error("OPENAI_API_KEY is not configured.");
-      }
 
-      return findClipsFromTranscript({
-        transcript,
-        transcriptSegments,
-        prompt,
-        apiKey,
-        baseURL: process.env.OPENAI_BASE_URL,
-        model: process.env.OPENAI_MODEL ?? "gpt-4o",
-      });
+      return analyzeTranscript(transcript, prompt, transcriptSegments);
     });
 
     await step.run("save-clips", async () => {
