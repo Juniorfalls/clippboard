@@ -519,6 +519,10 @@ export function WorkspaceDashboard({
         }
       );
 
+      if (!uploaded.url?.startsWith("https://")) {
+        throw new Error("The public clip URL could not be created.");
+      }
+
       return uploaded.url;
     } catch (uploadError) {
       toast.error("Clip rendered but upload failed", {

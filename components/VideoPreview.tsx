@@ -9,6 +9,9 @@ import type { Clip } from "@/types/video";
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
+const VIDEO_POSTER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='1280'%3E%3Crect width='100%25' height='100%25' fill='%231C1C1C'/%3E%3C/svg%3E";
+
 function formatDuration(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const m = Math.floor(seconds / 60);
@@ -22,6 +25,13 @@ export function VideoPreview({ clip }: { clip: Clip }) {
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(clip.duration);
+  const [hasError, setHasError] = useState(false);
+  const playbackUrl = clip.storageUrl ?? clip.url;
+
+  function markPreviewUnavailable() {
+    setHasError(true);
+    setIsPlaying(false);
+  }
 
   function togglePlayback() {
     const video = videoRef.current;
@@ -29,7 +39,8 @@ export function VideoPreview({ clip }: { clip: Clip }) {
 
     if (video.paused) {
       void video.play().catch(() => {
-        toast.error("Preview could not start");
+        markPreviewUnavailable();
+        toast.error("Preview unavailable. Please download to view.");
       });
     } else {
       video.pause();
@@ -43,14 +54,26 @@ export function VideoPreview({ clip }: { clip: Clip }) {
     setIsMuted(video.muted);
   }
 
+  if (!playbackUrl || hasError) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-[#1C1C1C] p-5 text-center">
+        <p className="max-w-[220px] text-[13px] font-semibold leading-relaxed text-warm-white/80">
+          Preview unavailable. Please download to view.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-full w-full bg-soft-black">
       <video
         ref={videoRef}
-        src={clip.url}
+        src={playbackUrl}
+        poster={VIDEO_POSTER}
         aria-label={`Preview of ${clip.title}`}
         playsInline
         preload="metadata"
+        onError={markPreviewUnavailable}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}

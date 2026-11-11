@@ -96,13 +96,15 @@ export async function downloadClip(
   clip: Clip,
   { silent = false }: { silent?: boolean } = {}
 ) {
-  if (!clip.url) {
+  const downloadUrl = clip.storageUrl ?? clip.url;
+
+  if (!downloadUrl) {
     if (!silent) toast.error("This clip is not ready yet");
     return false;
   }
 
   try {
-    const res = await fetch(clip.url);
+    const res = await fetch(downloadUrl);
     if (!res.ok) throw new Error("missing");
     const blob = await res.blob();
     const href = URL.createObjectURL(blob);
@@ -185,10 +187,13 @@ function PendingPreview({ index }: { index: number }) {
 
 function ErrorPreview() {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-red-50 p-4">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-red-50 p-4 text-center">
       <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-red-600">
-        Rendering failed
+        Processing failed
       </span>
+      <p className="max-w-[200px] text-[11px] font-medium leading-relaxed text-red-700/70">
+        Please generate this clip again.
+      </p>
     </div>
   );
 }
@@ -217,11 +222,17 @@ export function ClipCard({
   const [reasonPinned, setReasonPinned] = useState(false);
   const [reasonHovered, setReasonHovered] = useState(false);
   const showReason = reasonPinned || reasonHovered;
+  const hasVideoUrl = Boolean(clip.storageUrl || clip.url);
   const isScheduled = clip.status === "scheduled";
-  const isCompleted = clip.status === "completed" && Boolean(clip.url);
-  const isUploadFailed = clip.status === "error" && Boolean(clip.url);
+  const isCompleted = clip.status === "completed" && hasVideoUrl;
+  const isUploadFailed = clip.status === "error" && hasVideoUrl;
   const isReady =
-    Boolean(clip.url) && (isCompleted || isScheduled || isUploadFailed);
+    hasVideoUrl && (isCompleted || isScheduled || isUploadFailed);
+  const isMissingVideo =
+    !hasVideoUrl &&
+    (clip.status === "completed" ||
+      clip.status === "scheduled" ||
+      clip.status === "error");
   const canPublish = Boolean(
     clip.storageUrl || clip.url?.startsWith("https://")
   );
@@ -234,7 +245,7 @@ export function ClipCard({
           <VideoPreview clip={clip} />
         ) : isProcessing ? (
           <ProcessingPreview clip={clip} index={index} progress={progress} />
-        ) : clip.status === "error" ? (
+        ) : clip.status === "error" || isMissingVideo ? (
           <ErrorPreview />
         ) : (
           <PendingPreview index={index} />
