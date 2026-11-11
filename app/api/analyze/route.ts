@@ -90,6 +90,15 @@ export async function POST(request: Request) {
       : {};
 
   const jobId = randomUUID();
+  const eventKey = process.env.INNGEST_EVENT_KEY?.trim();
+
+  if (!eventKey && process.env.INNGEST_DEV !== "1") {
+    console.error("[analyze] INNGEST_EVENT_KEY is missing");
+    return errorResponse(
+      "Inngest is not configured. Add INNGEST_EVENT_KEY to the server environment.",
+      503
+    );
+  }
 
   try {
     const result = await inngest.send({
@@ -113,7 +122,16 @@ export async function POST(request: Request) {
       { status: 202 }
     );
   } catch (error) {
-    console.error("[analyze] Could not queue video processing", error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[analyze] Could not queue video processing", message);
+
+    if (message.toLowerCase().includes("unauthorized")) {
+      return errorResponse(
+        "Inngest rejected the event key. Confirm INNGEST_EVENT_KEY belongs to this Inngest environment.",
+        503
+      );
+    }
+
     return errorResponse(
       "Could not queue video processing. Check that Inngest is configured.",
       503
