@@ -572,7 +572,9 @@ export function WorkspaceDashboard({
         throw new Error("The rendered clip could not be read.");
       }
 
-      if (!blob.size) {
+      console.log("Rendered Blob Size:", blob.size);
+
+      if (blob.size === 0) {
         throw new Error("The rendered clip is empty.");
       }
 
@@ -597,6 +599,7 @@ export function WorkspaceDashboard({
 
       return uploaded.url;
     } catch (uploadError) {
+      console.error("Clip upload failed for clip:", clip.id);
       console.error("Blob Upload Error Details:", uploadError);
       const message =
         uploadError instanceof Error
@@ -862,14 +865,8 @@ export function WorkspaceDashboard({
           const storageUrl = await uploadRenderedVideo(clip, url);
 
           if (!storageUrl) {
-            const uploadFailedClip: Clip = {
-              ...clip,
-              status: "error",
-              url,
-            };
             updateClip(clip.id, { status: "error", url });
             setClipsThisMonth((count) => count + 1);
-            await persistClip(uploadFailedClip);
             continue;
           }
 
@@ -982,12 +979,6 @@ export function WorkspaceDashboard({
       if (!storageUrl) {
         updateClip(updatedClip.id, { status: "error", url });
         setClipsThisMonth((count) => count + 1);
-        await persistClip({
-          ...updatedClip,
-          status: "error",
-          duration: updatedClip.endTime - updatedClip.startTime,
-          url,
-        });
         return;
       }
 
