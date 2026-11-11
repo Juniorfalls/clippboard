@@ -183,10 +183,10 @@ const ANALYSIS_PROVIDERS = [
     model: "gemini-2.5-flash",
   },
   {
-    name: "Cerebras",
-    key: "CEREBRAS_API_KEY",
-    baseURL: "https://api.cerebras.ai/v1",
-    model: "llama-3.3-70b",
+    name: "OpenRouter",
+    key: "OPENROUTER_API_KEY",
+    baseURL: "https://openrouter.ai/api/v1",
+    model: "meta-llama/llama-3.3-70b-instruct:free",
   },
   {
     name: "Groq",
@@ -360,9 +360,15 @@ Return exactly 10 clips. Each clip must have a short title, a 3-6 word hookText,
         : "No providers remain.";
 
       if (status === 429) {
-        console.warn(
-          `[ai] ${provider.name} hit its rate limit (429). ${fallbackMessage}`
-        );
+        if (provider.name === "OpenRouter") {
+          console.warn(
+            "OpenRouter rate limit hit, falling back to Groq LLM..."
+          );
+        } else {
+          console.warn(
+            `[ai] ${provider.name} hit its rate limit (429). ${fallbackMessage}`
+          );
+        }
       } else {
         console.warn(
           `[ai] ${provider.name} failed${status ? ` (${status})` : ""}. ${fallbackMessage}`,
