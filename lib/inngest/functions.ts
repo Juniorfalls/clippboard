@@ -369,6 +369,35 @@ export const processVideo = inngest.createFunction(
       );
     });
 
+    if (clips.length === 0) {
+      const message = "No engaging moments found in this video.";
+
+      await step.run("mark-job-no-clips", async () => {
+        console.log("[inngest] No clips found. Marking job as failed...", {
+          jobId,
+        });
+        const admin = createAdminClient();
+        const { error } = await admin
+          .from("video_jobs")
+          .update({
+            status: "failed",
+            error: message,
+            transcript: transcriptSegments,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", jobId);
+
+        if (error) throw error;
+      });
+
+      await publishUpdate(jobId, {
+        stage: "failed",
+        message,
+      });
+
+      return { jobId, clipCount: 0 };
+    }
+
     await step.run("save-clips", async () => {
       console.log("[inngest] Step 4: Saving clips to Supabase...", {
         jobId,

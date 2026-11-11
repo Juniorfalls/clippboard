@@ -39,7 +39,7 @@ const MomentSchema = z
 
 function getAnalysisSchema() {
   return z.object({
-    clips: z.array(MomentSchema).min(1).max(10),
+    clips: z.array(z.unknown()).max(10),
   });
 }
 
@@ -107,9 +107,10 @@ function roundToHundredths(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-function parseJsonContent(content: string): unknown {
+export function cleanAndParseJSON(content: string): unknown {
   const cleaned = content
     .trim()
+    .replace(/^\uFEFF/, "")
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
 
@@ -336,7 +337,7 @@ ${prompt}
 Transcript with timestamps in seconds:
 ${transcript}
 
-Return up to ${clipLimit} clips, with no more than ${clipLimit}. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, a engagementScore from 1 to 100, a one-sentence viralityReason explaining the score, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
+Return up to ${clipLimit} clips. If there are not enough engaging moments, return fewer clips. Do not invent moments that do not exist. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, an engagementScore from 1 to 100, a one-sentence viralityReason explaining the score, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
       },
     ],
   });
@@ -346,10 +347,37 @@ Return up to ${clipLimit} clips, with no more than ${clipLimit}. Each clip must 
     throw new Error(`${provider.name} returned an empty response.`);
   }
 
-  const validation = getAnalysisSchema().safeParse(parseJsonContent(content));
+  const parsedContent = cleanAndParseJSON(content);
+  const normalizedContent = Array.isArray(parsedContent)
+    ? { clips: parsedContent }
+    : parsedContent;
+  const validation = getAnalysisSchema().safeParse(normalizedContent);
+
   if (!validation.success) {
-    throw new Error(`${provider.name} returned an incomplete clip list.`);
+    throw new Error(`${provider.name} returned an unreadable clip list.`);
   }
 
-  return buildClips(validation.data.clips, transcriptSegments, clipLimit);
+  const moments = validation.data.clips.flatMap((clip) => {
+    const parsedClip = MomentSchema.safeParse(clip);
+    if (!parsedClip.success) {
+      console.warn(
+        `[ai] ${provider.name} returned a clip that failed validation.`,
+        parsedClip.error.issues
+      );
+      return [];
+    }
+    return [parsedClip.data];
+  });
+
+  const clips = await buildClips(moments, transcriptSegments, clipLimit);
+
+  if (clips.length < clipLimit) {
+    console.warn("AI returned fewer clips than requested", {
+      provider: provider.name,
+      requested: clipLimit,
+      returned: clips.length,
+    });
+  }
+
+  return clips;
 }
