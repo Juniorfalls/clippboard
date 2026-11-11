@@ -148,6 +148,10 @@ export async function POST(request: Request) {
       : {};
 
   const jobId = randomUUID();
+  const sourceName =
+    typeof sourceNameValue === "string"
+      ? sourceNameValue.slice(0, 240)
+      : null;
   const eventKey = process.env.INNGEST_EVENT_KEY?.trim();
 
   if (!eventKey && process.env.INNGEST_DEV !== "1") {
@@ -156,6 +160,31 @@ export async function POST(request: Request) {
       "Inngest is not configured. Add INNGEST_EVENT_KEY to the server environment.",
       503
     );
+  }
+
+  try {
+    const admin = createAdminClient();
+    const { error: jobError } = await admin.from("video_jobs").upsert(
+      {
+        id: jobId,
+        user_id: user.id,
+        status: "queued",
+        prompt,
+        source_name: sourceName,
+        options,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
+
+    if (jobError) throw jobError;
+  } catch (error) {
+    console.error("[analyze] Could not create video job", error);
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
+    return errorResponse(`Could not create video job: ${message}`, 500);
   }
 
   try {
@@ -168,10 +197,7 @@ export async function POST(request: Request) {
         prompt,
         userId: user.id,
         maxClips,
-        sourceName:
-          typeof sourceNameValue === "string"
-            ? sourceNameValue.slice(0, 240)
-            : undefined,
+        sourceName: sourceName ?? undefined,
         options,
       },
     });
@@ -183,6 +209,20 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[analyze] Could not queue video processing", message);
+
+    try {
+      const admin = createAdminClient();
+      await admin
+        .from("video_jobs")
+        .update({
+          status: "failed",
+          error: message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+    } catch (updateError) {
+      console.error("[analyze] Could not mark video job as failed", updateError);
+    }
 
     if (message.toLowerCase().includes("unauthorized")) {
       return errorResponse(
