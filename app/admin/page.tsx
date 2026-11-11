@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Activity, Film, ShieldCheck, Users } from "lucide-react";
 import { AdminErrorToast } from "@/components/AdminErrorToast";
+import { AISystemHealth } from "@/components/AISystemHealth";
 import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -138,6 +139,8 @@ export default async function AdminPage() {
           </article>
         ))}
       </section>
+
+      <AISystemHealth />
 
       <section
         aria-label="All users"

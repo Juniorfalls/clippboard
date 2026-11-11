@@ -78,6 +78,7 @@ Raw source video is not uploaded to Clippboard servers for rendering. Optional s
    GROQ_API_KEY=your_groq_api_key
    GEMINI_API_KEY=your_gemini_api_key
    OPENROUTER_API_KEY=your_openrouter_api_key
+   DEEPGRAM_API_KEY=your_deepgram_api_key
    ```
 
 3. Apply the database migrations:
@@ -107,6 +108,7 @@ Raw source video is not uploaded to Clippboard servers for rendering. Optional s
 | `GROQ_API_KEY` | Groq Whisper transcription and LLM fallback |
 | `GEMINI_API_KEY` | Primary free AI clip analysis |
 | `OPENROUTER_API_KEY` | Secondary AI clip-analysis fallback |
+| `DEEPGRAM_API_KEY` | Deepgram transcription health checks |
 | `BLOB_READ_WRITE_TOKEN` | Direct browser-to-Vercel-Blob uploads |
 | `INNGEST_EVENT_KEY` | Queue background video-processing jobs |
 
@@ -125,6 +127,7 @@ NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_or_test_key
 GROQ_API_KEY=your_groq_api_key
 GEMINI_API_KEY=your_gemini_api_key
 OPENROUTER_API_KEY=your_openrouter_api_key
+DEEPGRAM_API_KEY=your_deepgram_api_key
 
 TOKEN_ENCRYPTION_KEY=your_32_byte_base64_key
 TIKTOK_CLIENT_KEY=your_tiktok_client_key
