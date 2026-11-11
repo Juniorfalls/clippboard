@@ -219,7 +219,12 @@ export function ClipCard({
   const showReason = reasonPinned || reasonHovered;
   const isScheduled = clip.status === "scheduled";
   const isCompleted = clip.status === "completed" && Boolean(clip.url);
-  const isReady = (isCompleted || isScheduled) && Boolean(clip.url);
+  const isUploadFailed = clip.status === "error" && Boolean(clip.url);
+  const isReady =
+    Boolean(clip.url) && (isCompleted || isScheduled || isUploadFailed);
+  const canPublish = Boolean(
+    clip.storageUrl || clip.url?.startsWith("https://")
+  );
   const isProcessing = clip.status === "processing";
 
   return (
@@ -426,6 +431,11 @@ export function ClipCard({
               <span className="inline-flex items-center justify-center gap-2 rounded-2 border border-brand-blue-light bg-brand-blue-light/60 px-3 py-2.5 text-[12px] font-semibold text-soft-black">
                 <Send className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
                 Scheduled
+              </span>
+            ) : !canPublish ? (
+              <span className="inline-flex items-center justify-center gap-2 rounded-2 border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] font-semibold text-amber-700">
+                <Send className="h-3.5 w-3.5" aria-hidden />
+                Publish unavailable
               </span>
             ) : (
               onSchedule && (

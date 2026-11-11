@@ -487,32 +487,45 @@ export function WorkspaceDashboard({
   async function uploadRenderedVideo(clip: Clip, renderedUrl: string) {
     try {
       const response = await fetch(renderedUrl);
-      if (!response.ok) throw new Error("The rendered clip could not be read.");
-      const blob = await response.blob();
-      if (!blob.size) throw new Error("The rendered clip is empty.");
+      if (!response.ok) {
+        throw new Error("The rendered clip could not be read.");
+      }
 
-      const supabase = createClient();
-      const path = `${userId}/${clip.id}-${Date.now()}.mp4`;
-      const { error } = await supabase.storage
-        .from("rendered_clips")
-        .upload(path, blob, {
+      let blob: Blob;
+      try {
+        blob = await response.blob();
+      } catch {
+        throw new Error("The rendered clip could not be read.");
+      }
+
+      if (!blob.size) {
+        throw new Error("The rendered clip is empty.");
+      }
+
+      const fileToUpload = new File(
+        [blob],
+        `${clip.id}-${Date.now()}.mp4`,
+        { type: "video/mp4" }
+      );
+      const uploaded = await upload(
+        `rendered/${userId}/${fileToUpload.name}`,
+        fileToUpload,
+        {
+          access: "public",
+          handleUploadUrl: "/api/upload",
+          multipart: true,
           contentType: "video/mp4",
-          cacheControl: "31536000",
-          upsert: true,
-        });
+          clientPayload: JSON.stringify({ userId }),
+        }
+      );
 
-      if (error) throw error;
-
-      const { data } = supabase.storage
-        .from("rendered_clips")
-        .getPublicUrl(path);
-      return data.publicUrl;
-    } catch (error) {
-      toast.error("Clip rendered but could not upload", {
+      return uploaded.url;
+    } catch (uploadError) {
+      toast.error("Clip rendered but upload failed", {
         description:
-          error instanceof Error
-            ? `${error.message} Publishing will be unavailable for this clip.`
-            : "Publishing will be unavailable for this clip.",
+          uploadError instanceof Error
+            ? uploadError.message
+            : "Publish will be unavailable for this clip.",
       });
       return null;
     }
@@ -769,16 +782,29 @@ export function WorkspaceDashboard({
 
           setProgressById((previous) => ({ ...previous, [clip.id]: 100 }));
           const storageUrl = await uploadRenderedVideo(clip, url);
+
+          if (!storageUrl) {
+            const uploadFailedClip: Clip = {
+              ...clip,
+              status: "error",
+              url,
+            };
+            updateClip(clip.id, { status: "error", url });
+            setClipsThisMonth((count) => count + 1);
+            void persistClip(uploadFailedClip);
+            continue;
+          }
+
           const completedClip: Clip = {
             ...clip,
             status: "completed",
             url,
-            storageUrl: storageUrl ?? undefined,
+            storageUrl,
           };
           updateClip(clip.id, {
             status: "completed",
             url,
-            storageUrl: storageUrl ?? undefined,
+            storageUrl,
           });
           setClipsThisMonth((count) => count + 1);
           void persistClip(completedClip);
@@ -874,16 +900,29 @@ export function WorkspaceDashboard({
 
       setProgressById((previous) => ({ ...previous, [updatedClip.id]: 100 }));
       const storageUrl = await uploadRenderedVideo(updatedClip, url);
+
+      if (!storageUrl) {
+        updateClip(updatedClip.id, { status: "error", url });
+        setClipsThisMonth((count) => count + 1);
+        void persistClip({
+          ...updatedClip,
+          status: "error",
+          duration: updatedClip.endTime - updatedClip.startTime,
+          url,
+        });
+        return;
+      }
+
       updateClip(updatedClip.id, {
         status: "completed",
         url,
-        storageUrl: storageUrl ?? undefined,
+        storageUrl,
       });
       setClipsThisMonth((count) => count + 1);
       void persistClip({
         ...updatedClip,
         duration: updatedClip.endTime - updatedClip.startTime,
-        storageUrl: storageUrl ?? undefined,
+        storageUrl,
       });
       toast.success("Trim saved", { description: updatedClip.title });
     } catch (error) {

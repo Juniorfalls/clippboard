@@ -23,6 +23,7 @@ type VideoProcessEvent = {
   audioBlobUrl: string;
   prompt: string;
   userId: string;
+  maxClips?: number;
   sourceName?: string;
   options?: Record<string, unknown>;
 };
@@ -87,8 +88,10 @@ export async function analyzeTranscriptWithFallback(
   transcript: string,
   prompt = "Find the 10 most engaging, self-contained moments in this transcript.",
   transcriptSegments: TranscriptSegment[] = [],
-  jobId?: string
+  jobId?: string,
+  maxClips = 10
 ): Promise<Clip[]> {
+  const clipLimit = Math.max(1, Math.min(10, Math.floor(maxClips)));
   let lastError: unknown;
   let sawRateLimit = false;
   let sawNonRateLimit = false;
@@ -129,7 +132,8 @@ export async function analyzeTranscriptWithFallback(
             provider,
             transcript,
             prompt,
-            transcriptSegments
+            transcriptSegments,
+            clipLimit
           ),
         {
           maxRetries: 3,
@@ -255,6 +259,7 @@ export const processVideo = inngest.createFunction(
       audioBlobUrl,
       prompt,
       userId,
+      maxClips = 10,
       sourceName,
       options = {},
     } = data;
@@ -359,7 +364,8 @@ export const processVideo = inngest.createFunction(
         transcript,
         prompt,
         transcriptSegments,
-        jobId
+        jobId,
+        maxClips
       );
     });
 

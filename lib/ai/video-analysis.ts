@@ -37,9 +37,11 @@ const MomentSchema = z
     path: ["endTime"],
   });
 
-const AnalysisSchema = z.object({
-  clips: z.array(MomentSchema).length(10),
-});
+function getAnalysisSchema() {
+  return z.object({
+    clips: z.array(MomentSchema).min(1).max(10),
+  });
+}
 
 const ANALYSIS_RESPONSE_SCHEMA = {
   type: "object",
@@ -202,8 +204,9 @@ const SYSTEM_PROMPT =
   "You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought and be between 15 and 90 seconds long. For every clip, write a short, punchy on-screen hook of 3 to 6 words that earns attention in the first second. The hookText must be plain spoken-style text with no quotes, hashtags, emojis, or trailing punctuation. Rate each clip's engagement potential from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. For every clip, write a viralityReason: one concise sentence explaining the score, such as a strong emotional hook in the first 3 seconds or high shareability from a bold take. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. Return JSON only.";
 
 async function buildClips(
-  moments: z.infer<typeof AnalysisSchema>["clips"],
-  transcriptSegments: TranscriptSegment[]
+  moments: Array<z.infer<typeof MomentSchema>>,
+  transcriptSegments: TranscriptSegment[],
+  maxClips: number
 ): Promise<Clip[]> {
   const clips: Clip[] = moments
     .map((moment) => {
@@ -265,7 +268,8 @@ async function buildClips(
         status: "pending" as const,
       };
     })
-    .sort((a, b) => b.engagementScore - a.engagementScore);
+    .sort((a, b) => b.engagementScore - a.engagementScore)
+    .slice(0, maxClips);
 
   await Promise.all(
     clips.map(async (clip) => {
@@ -289,12 +293,25 @@ export async function analyzeTranscriptWithProvider(
   provider: AnalysisProvider,
   transcript: string,
   prompt: string,
-  transcriptSegments: TranscriptSegment[] = []
+  transcriptSegments: TranscriptSegment[] = [],
+  maxClips = 10
 ): Promise<Clip[]> {
   const apiKey = process.env[provider.key];
   if (!apiKey) {
     throw new Error(`${provider.key} is not configured.`);
   }
+
+  const clipLimit = Math.max(1, Math.min(10, Math.floor(maxClips)));
+  const responseSchema = {
+    ...ANALYSIS_RESPONSE_SCHEMA,
+    properties: {
+      ...ANALYSIS_RESPONSE_SCHEMA.properties,
+      clips: {
+        ...ANALYSIS_RESPONSE_SCHEMA.properties.clips,
+        maxItems: clipLimit,
+      },
+    },
+  };
 
   const client = new OpenAI({ apiKey, baseURL: provider.baseURL });
   const completion = await client.chat.completions.create({
@@ -304,9 +321,12 @@ export async function analyzeTranscriptWithProvider(
     messages: [
       {
         role: "system",
-        content: `${SYSTEM_PROMPT}
+        content: `${SYSTEM_PROMPT.replace(
+          "select exactly 10",
+          `select up to ${clipLimit}`
+        )}
 Return a JSON object matching this schema exactly:
-${JSON.stringify(ANALYSIS_RESPONSE_SCHEMA)}`,
+${JSON.stringify(responseSchema)}`,
       },
       {
         role: "user",
@@ -316,7 +336,7 @@ ${prompt}
 Transcript with timestamps in seconds:
 ${transcript}
 
-Return exactly 10 clips. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, a engagementScore from 1 to 100, a one-sentence viralityReason explaining the score, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
+Return up to ${clipLimit} clips, with no more than ${clipLimit}. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, a engagementScore from 1 to 100, a one-sentence viralityReason explaining the score, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
       },
     ],
   });
@@ -326,10 +346,10 @@ Return exactly 10 clips. Each clip must have a short title, a 3-6 word hookText,
     throw new Error(`${provider.name} returned an empty response.`);
   }
 
-  const validation = AnalysisSchema.safeParse(parseJsonContent(content));
+  const validation = getAnalysisSchema().safeParse(parseJsonContent(content));
   if (!validation.success) {
     throw new Error(`${provider.name} returned an incomplete clip list.`);
   }
 
-  return buildClips(validation.data.clips, transcriptSegments);
+  return buildClips(validation.data.clips, transcriptSegments, clipLimit);
 }

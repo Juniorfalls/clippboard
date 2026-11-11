@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { inngest } from "@/lib/inngest/client";
+import { normalizePlan, STARTER_CLIP_LIMIT } from "@/lib/plans";
 import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
@@ -86,6 +87,50 @@ export async function POST(request: Request) {
     );
   }
 
+  const now = new Date();
+  const monthStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+  ).toISOString();
+
+  const [{ data: profile, error: profileError }, { count, error: countError }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("plan")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("clips")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("created_at", monthStart),
+    ]);
+
+  if (profileError || countError) {
+    console.error(
+      "[analyze] Could not verify plan usage",
+      profileError ?? countError
+    );
+    return errorResponse(
+      "Could not verify your plan usage. Please try again.",
+      500
+    );
+  }
+
+  const plan = normalizePlan(profile?.plan);
+  const clipsUsed = count ?? 0;
+  const starterRemaining = Math.max(0, STARTER_CLIP_LIMIT - clipsUsed);
+
+  if (plan === "starter" && starterRemaining === 0) {
+    return errorResponse(
+      "You have reached your Starter plan limit. Please upgrade to Pro.",
+      403
+    );
+  }
+
+  const maxClips =
+    plan === "starter" ? Math.min(10, starterRemaining) : 10;
+
   const options =
     typeof optionsValue === "object" &&
     optionsValue !== null &&
@@ -113,6 +158,7 @@ export async function POST(request: Request) {
         audioBlobUrl: parsedUrl.toString(),
         prompt,
         userId: user.id,
+        maxClips,
         sourceName:
           typeof sourceNameValue === "string"
             ? sourceNameValue.slice(0, 240)
