@@ -107,23 +107,40 @@ function roundToHundredths(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-export function cleanAndParseJSON(content: string): unknown {
-  const cleanText = content
+export function cleanAndParseJSON(content: string): unknown | null {
+  const text = content.trim();
+  const fenced = text
     .replace(/^\uFEFF/, "")
     .replace(/```json/gi, "")
     .replace(/```/g, "")
     .trim();
 
-  try {
-    return JSON.parse(cleanText);
-  } catch (error) {
-    console.error("[ai] Failed to parse AI JSON response", {
-      rawText: content,
-      cleanText,
-      error,
-    });
-    throw error;
+  const candidates = [text, fenced];
+  const firstBrace = fenced.indexOf("{");
+  const lastBrace = fenced.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(fenced.slice(firstBrace, lastBrace + 1));
   }
+
+  const firstBracket = fenced.indexOf("[");
+  const lastBracket = fenced.lastIndexOf("]");
+  if (firstBracket >= 0 && lastBracket > firstBracket) {
+    candidates.push(fenced.slice(firstBracket, lastBracket + 1));
+  }
+
+  for (const candidate of new Set(candidates)) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try the next extraction strategy.
+    }
+  }
+
+  console.error("[ai] Failed to parse AI JSON response", {
+    rawText: content,
+    cleanedText: fenced,
+  });
+  return null;
 }
 
 export function buildTranscriptText(segments: TranscriptSegment[]) {
@@ -360,6 +377,10 @@ Return up to ${clipLimit} clips. If there are not enough engaging moments, retur
   }
 
   const parsedContent = cleanAndParseJSON(content);
+  if (parsedContent === null) {
+    throw new Error(`${provider.name} returned invalid JSON.`);
+  }
+
   const normalizedContent = Array.isArray(parsedContent)
     ? { clips: parsedContent }
     : parsedContent;

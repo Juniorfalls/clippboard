@@ -8,6 +8,7 @@ import {
   segmentsFromTranscription,
 } from "@/lib/ai/video-analysis";
 import {
+  getErrorStatus,
   isRateLimitError,
   withExponentialBackoff,
 } from "@/lib/ai/rate-limit-handler";
@@ -40,6 +41,23 @@ function groqTranscriptionClient() {
     apiKey,
     baseURL: "https://api.groq.com/openai/v1",
   });
+}
+
+function getGroqFailedGeneration(error: unknown) {
+  if (typeof error !== "object" || error === null) return undefined;
+  const candidate = error as {
+    failed_generation?: unknown;
+    error?: { failed_generation?: unknown };
+    body?: { error?: { failed_generation?: unknown } };
+    response?: { data?: { error?: { failed_generation?: unknown } } };
+  };
+
+  return (
+    candidate.failed_generation ??
+    candidate.error?.failed_generation ??
+    candidate.body?.error?.failed_generation ??
+    candidate.response?.data?.error?.failed_generation
+  );
 }
 
 const ANALYSIS_FALLBACK_CHAIN = [
@@ -147,6 +165,15 @@ export async function analyzeTranscriptWithFallback(
       return clips;
     } catch (error) {
       lastError = error;
+      const status = getErrorStatus(error);
+
+      if (provider.name === "Groq" && status === 400) {
+        console.error(
+          "Groq JSON Failure. Raw Output:",
+          getGroqFailedGeneration(error)
+        );
+      }
+
       const rateLimited = isRateLimitError(error);
       if (rateLimited) {
         sawRateLimit = true;
