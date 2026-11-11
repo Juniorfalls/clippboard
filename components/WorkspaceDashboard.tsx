@@ -106,7 +106,19 @@ type ClipRow = {
   hook_text: string | null;
   virality_reason: string | null;
   metadata: Partial<Clip> | null;
+  video_url?: string | null;
+  status?: string | null;
+  created_at?: string | null;
 };
+
+function storedClipStatus(
+  status: string | null | undefined,
+  videoUrl: string | null | undefined
+): Clip["status"] {
+  if (status === "scheduled" && videoUrl) return "scheduled";
+  if (status === "error" || !videoUrl) return "error";
+  return "completed";
+}
 
 export function WorkspaceDashboard({
   userId,
@@ -196,6 +208,67 @@ export function WorkspaceDashboard({
       description: `Starter includes ${STARTER_CLIP_LIMIT} generated clips per month.`,
     });
   }, [starterLimitReached]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadClips() {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("clips")
+          .select(
+            "id, title, duration, engagement_score, start_time, end_time, hook_text, virality_reason, metadata, video_url, status, created_at"
+          )
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const savedClips = ((data ?? []) as ClipRow[]).map((row) => {
+          const metadata = row.metadata ?? {};
+          const videoUrl =
+            typeof row.video_url === "string" && row.video_url.length > 0
+              ? row.video_url
+              : undefined;
+
+          return {
+            ...metadata,
+            id: row.id,
+            title: row.title || metadata.title || "Untitled clip",
+            duration: Number(row.duration ?? metadata.duration ?? 0),
+            engagementScore: Number(
+              row.engagement_score ?? metadata.engagementScore ?? 0
+            ),
+            startTime: Number(row.start_time ?? metadata.startTime ?? 0),
+            endTime: Number(row.end_time ?? metadata.endTime ?? 0),
+            hookText: row.hook_text ?? metadata.hookText ?? "",
+            viralityReason:
+              row.virality_reason ?? metadata.viralityReason ?? "",
+            status: storedClipStatus(row.status, videoUrl),
+            url: videoUrl,
+            storageUrl: videoUrl,
+          } satisfies Clip;
+        });
+
+        setClips(savedClips);
+      } catch (error) {
+        if (cancelled) return;
+        console.error("[dashboard] Could not load saved clips", error);
+        toast.error("Could not load saved clips", {
+          description:
+            error instanceof Error ? error.message : "Please try again.",
+        });
+      }
+    }
+
+    void loadClips();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     const saved = loadBrandKit(userId);
@@ -476,7 +549,8 @@ export function WorkspaceDashboard({
     } catch (error) {
       if (!hasShownClipPersistError.current) {
         hasShownClipPersistError.current = true;
-        toast.error("Could not save clip analytics", {
+        console.error("[dashboard] Could not save rendered clip", error);
+        toast.error("Could not save rendered clip", {
           description:
             error instanceof Error ? error.message : "Please try again.",
         });
@@ -795,7 +869,7 @@ export function WorkspaceDashboard({
             };
             updateClip(clip.id, { status: "error", url });
             setClipsThisMonth((count) => count + 1);
-            void persistClip(uploadFailedClip);
+            await persistClip(uploadFailedClip);
             continue;
           }
 
@@ -811,7 +885,7 @@ export function WorkspaceDashboard({
             storageUrl,
           });
           setClipsThisMonth((count) => count + 1);
-          void persistClip(completedClip);
+          await persistClip(completedClip);
         } catch (error) {
           failedCount += 1;
           updateClip(clip.id, { status: "error" });
@@ -908,7 +982,7 @@ export function WorkspaceDashboard({
       if (!storageUrl) {
         updateClip(updatedClip.id, { status: "error", url });
         setClipsThisMonth((count) => count + 1);
-        void persistClip({
+        await persistClip({
           ...updatedClip,
           status: "error",
           duration: updatedClip.endTime - updatedClip.startTime,
@@ -923,7 +997,7 @@ export function WorkspaceDashboard({
         storageUrl,
       });
       setClipsThisMonth((count) => count + 1);
-      void persistClip({
+      await persistClip({
         ...updatedClip,
         duration: updatedClip.endTime - updatedClip.startTime,
         storageUrl,
