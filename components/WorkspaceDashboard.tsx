@@ -576,11 +576,9 @@ export function WorkspaceDashboard({
         throw new Error("The rendered clip is empty.");
       }
 
-      const fileToUpload = new File(
-        [blob],
-        `${clip.id}-${Date.now()}.mp4`,
-        { type: "video/mp4" }
-      );
+      const fileToUpload = new File([blob], `clip-${clip.id}.mp4`, {
+        type: "video/mp4",
+      });
       const uploaded = await upload(
         `rendered/${userId}/${fileToUpload.name}`,
         fileToUpload,
@@ -599,11 +597,13 @@ export function WorkspaceDashboard({
 
       return uploaded.url;
     } catch (uploadError) {
-      toast.error("Clip rendered but upload failed", {
-        description:
-          uploadError instanceof Error
-            ? uploadError.message
-            : "Publish will be unavailable for this clip.",
+      console.error("Blob Upload Error Details:", uploadError);
+      const message =
+        uploadError instanceof Error
+          ? uploadError.message
+          : String(uploadError);
+      toast.error(`Upload failed: ${message}`, {
+        description: "The clip is still available to download.",
       });
       return null;
     }
