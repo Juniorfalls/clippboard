@@ -6,7 +6,7 @@ export function ClipSkeleton({ className }: { className?: string }) {
     <div
       aria-hidden
       className={cn(
-        "animate-pulse overflow-hidden rounded-3 border-4 border-brand-blue-light bg-white",
+        "animate-pulse overflow-hidden rounded-3 border border-gray-200 bg-white",
         className
       )}
     >

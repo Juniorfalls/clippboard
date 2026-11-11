@@ -1281,9 +1281,9 @@ export function WorkspaceDashboard({
         </div>
 
         {isProcessing && clips.length === 0 ? (
-          <div className="grid grid-cols-1 gap-4 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 10 }).map((_, i) => (
-              <ClipSkeleton key={i} className="mx-auto w-full max-w-sm xs:max-w-none" />
+              <ClipSkeleton key={i} className="w-full" />
             ))}
           </div>
         ) : clips.length > 0 ? (

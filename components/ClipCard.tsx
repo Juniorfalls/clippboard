@@ -228,7 +228,7 @@ export function ClipCard({
   const isProcessing = clip.status === "processing";
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-3 border-4 border-brand-blue-light bg-white">
+    <article className="flex w-full flex-col overflow-hidden rounded-3 border border-gray-200 bg-white">
       <div className="relative aspect-[9/16]">
         {isReady ? (
           <VideoPreview clip={clip} />

@@ -84,9 +84,9 @@ export function ClipGallery({
         </button>
       </div>
 
-      <ul className="grid grid-cols-1 gap-4 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {clips.map((clip, i) => (
-          <li key={clip.id} className="mx-auto w-full max-w-sm xs:max-w-none">
+          <li key={clip.id} className="w-full">
             <ClipCard
               clip={clip}
               index={i}
