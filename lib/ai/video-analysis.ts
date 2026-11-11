@@ -24,13 +24,13 @@ const FillerCutSchema = z
 const MomentSchema = z
   .object({
     title: z.string().trim().min(1).max(120),
-    hookText: z.string().trim().min(1).max(80),
+    hookText: z.string().trim().min(1).max(80).optional(),
     startTime: z.number().finite().min(0),
     endTime: z.number().finite().positive(),
     engagementScore: z.number().int().min(1).max(100),
     viralityReason: z.string().trim().min(1).max(240),
-    fillerCuts: z.array(FillerCutSchema).max(40),
-    broll: z.array(BRollSchema).max(2),
+    fillerCuts: z.array(FillerCutSchema).max(40).default([]),
+    broll: z.array(BRollSchema).max(2).default([]),
   })
   .refine((moment) => moment.endTime > moment.startTime, {
     message: "endTime must be greater than startTime",
@@ -42,66 +42,6 @@ function getAnalysisSchema() {
     clips: z.array(z.unknown()).max(10),
   });
 }
-
-const ANALYSIS_RESPONSE_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    clips: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          title: { type: "string" },
-          hookText: { type: "string" },
-          startTime: { type: "number" },
-          endTime: { type: "number" },
-          engagementScore: { type: "integer", minimum: 1, maximum: 100 },
-          viralityReason: { type: "string" },
-          fillerCuts: {
-            type: "array",
-            maxItems: 40,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                start: { type: "number" },
-                end: { type: "number" },
-              },
-              required: ["start", "end"],
-            },
-          },
-          broll: {
-            type: "array",
-            maxItems: 2,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                query: { type: "string" },
-                startTime: { type: "number" },
-                duration: { type: "number" },
-              },
-              required: ["query", "startTime", "duration"],
-            },
-          },
-        },
-        required: [
-          "title",
-          "hookText",
-          "startTime",
-          "endTime",
-          "engagementScore",
-          "viralityReason",
-          "fillerCuts",
-          "broll",
-        ],
-      },
-    },
-  },
-  required: ["clips"],
-} as const;
 
 function roundToHundredths(value: number) {
   return Math.round(value * 100) / 100;
@@ -116,17 +56,11 @@ export function cleanAndParseJSON(content: string): unknown | null {
     .trim();
 
   const candidates = [text, fenced];
-  const firstBrace = fenced.indexOf("{");
-  const lastBrace = fenced.lastIndexOf("}");
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    candidates.push(fenced.slice(firstBrace, lastBrace + 1));
-  }
+  const objectMatch = fenced.match(/\{[\s\S]*\}/);
+  if (objectMatch) candidates.push(objectMatch[0]);
 
-  const firstBracket = fenced.indexOf("[");
-  const lastBracket = fenced.lastIndexOf("]");
-  if (firstBracket >= 0 && lastBracket > firstBracket) {
-    candidates.push(fenced.slice(firstBracket, lastBracket + 1));
-  }
+  const arrayMatch = fenced.match(/\[[\s\S]*\]/);
+  if (arrayMatch) candidates.push(arrayMatch[0]);
 
   for (const candidate of new Set(candidates)) {
     try {
@@ -228,7 +162,7 @@ export const ANALYSIS_PROVIDERS = [
 export type AnalysisProvider = (typeof ANALYSIS_PROVIDERS)[number];
 
 const STRICT_JSON_INSTRUCTION =
-  "CRITICAL: You must return ONLY a valid JSON object. Do not include markdown formatting, code blocks (```json), explanations, or any text before or after the JSON. If you wrap the JSON in markdown, the request will fail.";
+  'CRITICAL: You must return ONLY a valid JSON object. Do not include markdown formatting, code blocks (```json), explanations, or any text before or after the JSON. The JSON must match this exact structure: { "clips": [ { "startTime": number, "endTime": number, "title": string, "engagementScore": number, "viralityReason": string } ] }';
 
 const SYSTEM_PROMPT =
   `You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought and be between 15 and 90 seconds long. For every clip, write a short, punchy on-screen hook of 3 to 6 words that earns attention in the first second. The hookText must be plain spoken-style text with no quotes, hashtags, emojis, or trailing punctuation. Rate each clip's engagement potential from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. For every clip, write a viralityReason: one concise sentence explaining the score, such as a strong emotional hook in the first 3 seconds or high shareability from a bold take. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. ${STRICT_JSON_INSTRUCTION} Return JSON only.`;
@@ -285,7 +219,7 @@ async function buildClips(
       return {
         id: randomUUID(),
         title: moment.title.trim(),
-        hookText: moment.hookText.trim(),
+        hookText: (moment.hookText ?? moment.title).trim().slice(0, 80),
         startTime,
         endTime,
         duration: roundToHundredths(clipDuration),
@@ -332,17 +266,6 @@ export async function analyzeTranscriptWithProvider(
   }
 
   const clipLimit = Math.max(1, Math.min(10, Math.floor(maxClips)));
-  const responseSchema = {
-    ...ANALYSIS_RESPONSE_SCHEMA,
-    properties: {
-      ...ANALYSIS_RESPONSE_SCHEMA.properties,
-      clips: {
-        ...ANALYSIS_RESPONSE_SCHEMA.properties.clips,
-        maxItems: clipLimit,
-      },
-    },
-  };
-
   const client = new OpenAI({ apiKey, baseURL: provider.baseURL });
   const completion = await client.chat.completions.create({
     model: provider.model,
@@ -351,12 +274,10 @@ export async function analyzeTranscriptWithProvider(
     messages: [
       {
         role: "system",
-        content: `${SYSTEM_PROMPT.replace(
+        content: SYSTEM_PROMPT.replace(
           "select exactly 10",
           `select up to ${clipLimit}`
-        )}
-Return a JSON object matching this schema exactly:
-${JSON.stringify(responseSchema)}`,
+        ),
       },
       {
         role: "user",
