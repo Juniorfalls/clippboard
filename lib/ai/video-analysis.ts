@@ -180,19 +180,19 @@ export const ANALYSIS_PROVIDERS = [
     name: "Gemini",
     key: "GEMINI_API_KEY",
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-    model: "gemini-2.5-flash",
+    model: "gemini-1.5-flash",
   },
   {
     name: "OpenRouter",
     key: "OPENROUTER_API_KEY",
     baseURL: "https://openrouter.ai/api/v1",
-    model: "meta-llama/llama-3.3-70b-instruct:free",
+    model: "meta-llama/llama-3.1-8b-instruct:free",
   },
   {
     name: "Groq",
     key: "GROQ_API_KEY",
     baseURL: "https://api.groq.com/openai/v1",
-    model: "llama-3.3-70b-versatile",
+    model: "llama-3.1-8b-instant",
   },
 ] as const;
 

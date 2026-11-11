@@ -14,6 +14,7 @@ import { ClipSkeleton } from "@/components/ClipSkeleton";
 import { ClipGallery } from "@/components/ClipGallery";
 import type { PublishPayload } from "@/components/PublishModal";
 import { getVideoProcessor } from "@/services/video";
+import { extractAudio } from "@/lib/extract-audio";
 import { loadBrandKit, type BrandTemplate } from "@/lib/brand-kit";
 import {
   videoProcessingChannel,
@@ -65,6 +66,16 @@ const PROMPT_PRESETS = [
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
 
+const REALTIME_STATUS_MESSAGES: Partial<
+  Record<VideoProcessingUpdate["stage"], string>
+> = {
+  queued: "Extracting audio in your browser...",
+  uploading: "Uploading secure audio...",
+  transcribing: "AI is transcribing your video...",
+  analyzing: "AI is finding the best moments...",
+  rendering: "Rendering final clips in your browser...",
+};
+
 type TeamProject = {
   id: string;
   title: string;
@@ -106,7 +117,7 @@ export function WorkspaceDashboard({
 }) {
   const { activeTeamId, activeTeam } = useTeam();
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploadedBlobUrl, setUploadedBlobUrl] = useState<string | null>(null);
+  const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [prompt, setPrompt] = useState("Find the 10 best moments from this video.");
   const [activePreset, setActivePreset] = useState<string | null>(null);
@@ -263,15 +274,12 @@ export function WorkspaceDashboard({
       return;
     }
 
-    setAnalysisStatus(update.message);
-    toast.loading(update.message, {
+    const displayMessage =
+      REALTIME_STATUS_MESSAGES[update.stage] ?? update.message;
+    setAnalysisStatus(displayMessage);
+    toast.loading(displayMessage, {
       id: "analysis-status",
-      description:
-        update.stage === "transcribing" &&
-        update.chunk &&
-        update.totalChunks
-          ? `Chunk ${update.chunk} of ${update.totalChunks}`
-          : "Processing in the background.",
+      description: "Processing in the background.",
     });
   }, [activeJobId, realtime.messages.last]);
 
@@ -319,10 +327,11 @@ export function WorkspaceDashboard({
     uploadAbortRef.current = null;
     toast.dismiss("video-upload");
     setUploadedFile(file);
-    setUploadedBlobUrl(null);
+    setUploadedAudioUrl(null);
 
     if (!file) {
       setIsUploading(false);
+      setAnalysisStatus(null);
       return;
     }
 
@@ -331,40 +340,68 @@ export function WorkspaceDashboard({
     setIsUploading(true);
 
     const toastId = "video-upload";
-    toast.loading("Uploading video securely...", {
+    setAnalysisStatus("Extracting audio in your browser...");
+    toast.loading("Extracting audio in your browser...", {
       id: toastId,
-      description: "Sending the original file directly to storage.",
+      description: "Your original video never leaves this device.",
     });
 
     try {
-      const safeName =
-        file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-120) || "video.mp4";
-      const blob = await upload(`videos/${userId}/${Date.now()}-${safeName}`, file, {
-        access: "public",
-        handleUploadUrl: "/api/upload",
-        multipart: true,
-        clientPayload: JSON.stringify({ userId }),
-        abortSignal: controller.signal,
-        onUploadProgress: ({ percentage }) => {
-          toast.loading("Uploading video securely...", {
-            id: toastId,
-            description: `${Math.round(percentage)}% uploaded`,
-          });
-        },
+      const audioFile = await extractAudio(file, (progress) => {
+        const percentage = Math.round(progress * 100);
+        setAnalysisStatus("Extracting audio in your browser...");
+        toast.loading("Extracting audio in your browser...", {
+          id: toastId,
+          description: `${percentage}% complete. Your video stays on this device.`,
+        });
       });
 
       if (controller.signal.aborted) return;
 
-      setUploadedBlobUrl(blob.url);
-      toast.success("Video uploaded", {
+      setAnalysisStatus("Uploading secure audio...");
+      toast.loading("Uploading secure audio...", {
         id: toastId,
-        description: "Ready to generate clips.",
+        description: "Only the compressed audio track is uploaded.",
+      });
+
+      const safeName =
+        file.name
+          .replace(/\.[^.]+$/, "")
+          .replace(/[^a-zA-Z0-9._-]+/g, "-")
+          .slice(-100) || "video";
+      const blob = await upload(
+        `audio/${userId}/${Date.now()}-${safeName}-audio.mp3`,
+        audioFile,
+        {
+          access: "public",
+          handleUploadUrl: "/api/upload",
+          multipart: true,
+          contentType: "audio/mpeg",
+          clientPayload: JSON.stringify({ userId }),
+          abortSignal: controller.signal,
+          onUploadProgress: ({ percentage }) => {
+            toast.loading("Uploading secure audio...", {
+              id: toastId,
+              description: `${Math.round(percentage)}% uploaded`,
+            });
+          },
+        }
+      );
+
+      if (controller.signal.aborted) return;
+
+      setUploadedAudioUrl(blob.url);
+      toast.success("Audio ready", {
+        id: toastId,
+        description:
+          "Your original video stays in this browser for clip rendering.",
       });
     } catch (error) {
       if (controller.signal.aborted) return;
 
       setUploadedFile(null);
-      toast.error("Could not upload video", {
+      setUploadedAudioUrl(null);
+      toast.error("Could not prepare audio", {
         id: toastId,
         description:
           error instanceof Error ? error.message : "Please try again.",
@@ -373,6 +410,7 @@ export function WorkspaceDashboard({
       if (uploadAbortRef.current === controller) {
         uploadAbortRef.current = null;
         setIsUploading(false);
+        setAnalysisStatus(null);
       }
     }
   }
@@ -483,10 +521,14 @@ export function WorkspaceDashboard({
       return;
     }
 
-    if (!uploadedBlobUrl) {
-      toast.error(isUploading ? "Upload still in progress" : "Upload the video first", {
-        description: "Wait for the secure upload to finish, then try again.",
-      });
+    if (!uploadedAudioUrl) {
+      toast.error(
+        isUploading ? "Audio is still being prepared" : "Add a video first",
+        {
+          description:
+            "Wait for browser audio extraction and the secure upload to finish.",
+        }
+      );
       return;
     }
 
@@ -495,12 +537,12 @@ export function WorkspaceDashboard({
     completedJobRef.current = null;
     setClips([]);
     setProgressById({});
-    setAnalysisStatus("Queueing background processing...");
+    setAnalysisStatus("Uploading secure audio...");
 
     const statusToastId = "analysis-status";
-    toast.loading("Processing video...", {
+    toast.loading("Uploading secure audio...", {
       id: statusToastId,
-      description: "Sending the video to the background worker.",
+      description: "Sending the compressed audio to the AI worker.",
     });
 
     try {
@@ -508,7 +550,7 @@ export function WorkspaceDashboard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          blobUrl: uploadedBlobUrl,
+          audioBlobUrl: uploadedAudioUrl,
           prompt,
           userId,
           sourceName: uploadedFile.name,
@@ -521,7 +563,6 @@ export function WorkspaceDashboard({
             removeSilences: autoRemoveSilences,
             karaokeCaptions,
             smartCrop,
-            sourceBlobUrl: uploadedBlobUrl,
           },
         }),
       });
@@ -542,8 +583,8 @@ export function WorkspaceDashboard({
       }
 
       setActiveJobId(queued.jobId);
-      setAnalysisStatus("Processing video in the background...");
-      toast.loading("Processing video...", {
+      setAnalysisStatus("AI is transcribing your video...");
+      toast.loading("AI is transcribing your video...", {
         id: statusToastId,
         description: "Waiting for the first live update.",
       });
@@ -568,8 +609,8 @@ export function WorkspaceDashboard({
         throw new Error("The source video is no longer available.");
       }
 
-      setAnalysisStatus("Preparing clips...");
-      toast.loading("Preparing clips...", {
+      setAnalysisStatus("Rendering final clips in your browser...");
+      toast.loading("Rendering final clips in your browser...", {
         id: statusToastId,
         description: "Loading the completed analysis.",
       });
@@ -628,10 +669,10 @@ export function WorkspaceDashboard({
         throw new Error("No memorable moments were found in this video.");
       }
 
-      setAnalysisStatus("Rendering clips...");
+      setAnalysisStatus("Rendering final clips in your browser...");
       setClips(analysis.clips);
       setTranscript(analysis.transcript);
-      toast.loading("Rendering clips...", {
+      toast.loading("Rendering final clips in your browser...", {
         id: statusToastId,
         description: `${analysis.clips.length} clips ready. Rendering in your browser.`,
       });
@@ -1174,9 +1215,10 @@ export function WorkspaceDashboard({
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-[24px] font-bold leading-[1.25]">Your clips</h2>
-          {isProcessing && (
+          {(isProcessing || isUploading) && (
             <p className="text-[14px] font-semibold text-soft-black/60">
-              {analysisStatus ?? "Browser rendering in progress. Please keep tab open."}
+              {analysisStatus ??
+                "Browser rendering in progress. Please keep tab open."}
             </p>
           )}
         </div>

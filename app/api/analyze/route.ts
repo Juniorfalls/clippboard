@@ -34,12 +34,14 @@ export async function POST(request: Request) {
   }
 
   const {
+    audioBlobUrl,
     blobUrl,
     prompt: promptValue,
     options: optionsValue,
     userId: requestedUserId,
     sourceName: sourceNameValue,
   } = payload as {
+    audioBlobUrl?: unknown;
     blobUrl?: unknown;
     prompt?: unknown;
     options?: unknown;
@@ -47,27 +49,29 @@ export async function POST(request: Request) {
     sourceName?: unknown;
   };
 
+  const uploadedFileUrl = audioBlobUrl ?? blobUrl;
+
   if (requestedUserId && requestedUserId !== user.id) {
     return errorResponse("This upload does not belong to your account.", 403);
   }
 
   if (
-    typeof blobUrl !== "string" ||
-    blobUrl.length === 0 ||
-    blobUrl.length > MAX_BLOB_URL_LENGTH
+    typeof uploadedFileUrl !== "string" ||
+    uploadedFileUrl.length === 0 ||
+    uploadedFileUrl.length > MAX_BLOB_URL_LENGTH
   ) {
-    return errorResponse("Add the uploaded file URL to analyze.", 400);
+    return errorResponse("Add the uploaded audio URL to analyze.", 400);
   }
 
   let parsedUrl: URL;
   try {
-    parsedUrl = new URL(blobUrl);
+    parsedUrl = new URL(uploadedFileUrl);
   } catch {
-    return errorResponse("That uploaded file URL is not valid.", 400);
+    return errorResponse("That uploaded audio URL is not valid.", 400);
   }
 
   if (parsedUrl.protocol !== "https:") {
-    return errorResponse("The uploaded file URL must use HTTPS.", 400);
+    return errorResponse("The uploaded audio URL must use HTTPS.", 400);
   }
 
   const prompt =
@@ -106,7 +110,7 @@ export async function POST(request: Request) {
       name: "video/process.requested",
       data: {
         jobId,
-        blobUrl: parsedUrl.toString(),
+        audioBlobUrl: parsedUrl.toString(),
         prompt,
         userId: user.id,
         sourceName:

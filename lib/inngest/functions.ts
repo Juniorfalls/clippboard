@@ -1,23 +1,15 @@
-import { readFile } from "fs/promises";
-import { put } from "@vercel/blob";
 import OpenAI from "openai";
 import { inngest } from "@/lib/inngest/client";
 import {
   ANALYSIS_PROVIDERS,
   analyzeTranscriptWithProvider,
   buildTranscriptText,
-  offsetTranscriptSegments,
   segmentsFromTranscription,
 } from "@/lib/ai/video-analysis";
 import {
   isRateLimitError,
   withExponentialBackoff,
 } from "@/lib/ai/rate-limit-handler";
-import {
-  downloadVideoToTemp,
-  extractAudioChunks,
-  SERVER_AUDIO_CHUNK_SECONDS,
-} from "@/lib/audio/server-chunks";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   videoProcessingChannel,
@@ -27,12 +19,14 @@ import type { Clip, TranscriptSegment } from "@/types/video";
 
 type VideoProcessEvent = {
   jobId: string;
-  blobUrl: string;
+  audioBlobUrl: string;
   prompt: string;
   userId: string;
   sourceName?: string;
   options?: Record<string, unknown>;
 };
+
+const MAX_GROQ_AUDIO_BYTES = 24 * 1024 * 1024;
 
 function groqTranscriptionClient() {
   const apiKey = process.env.GROQ_API_KEY;
@@ -178,14 +172,14 @@ export const processVideo = inngest.createFunction(
     const data = event.data as VideoProcessEvent;
     const {
       jobId,
-      blobUrl,
+      audioBlobUrl,
       prompt,
       userId,
       sourceName,
       options = {},
     } = data;
 
-    if (!jobId || !blobUrl || !prompt || !userId) {
+    if (!jobId || !audioBlobUrl || !prompt || !userId) {
       throw new Error("The video processing event is missing required data.");
     }
 
@@ -210,87 +204,52 @@ export const processVideo = inngest.createFunction(
 
     await publishUpdate(jobId, {
       stage: "uploading",
-      message: "Uploading video...",
+      message: "Uploading secure audio...",
     });
 
-    const audioChunks = await step.run("download-and-chunk-audio", async () => {
-      console.log("[inngest] Step 2: Downloading video and extracting audio...", {
-        jobId,
-      });
-      const download = await downloadVideoToTemp(blobUrl, jobId);
-
-      try {
-        const chunkPaths = await extractAudioChunks(
-          download.videoPath,
-          download.workDir
-        );
-        const uploaded: Array<{ index: number; url: string }> = [];
-
-        for (const [index, chunkPath] of chunkPaths.entries()) {
-          const buffer = await readFile(chunkPath);
-          const blob = await put(
-            `analysis/${userId}/${jobId}/chunk-${index}.mp3`,
-            buffer,
-            {
-              access: "public",
-              contentType: "audio/mpeg",
-              addRandomSuffix: true,
-            }
-          );
-          uploaded.push({ index, url: blob.url });
-        }
-
-        return uploaded;
-      } finally {
-        await download.cleanup();
-      }
+    await publishUpdate(jobId, {
+      stage: "transcribing",
+      message: "AI is transcribing your video...",
+      progress: 25,
     });
 
-    const transcriptionModel = "whisper-large-v3";
-    const transcriptSegments: TranscriptSegment[] = [];
-
-    for (const chunk of audioChunks) {
-      await publishUpdate(jobId, {
-        stage: "transcribing",
-        message: `Transcribing chunk ${chunk.index + 1} of ${audioChunks.length}...`,
-        chunk: chunk.index + 1,
-        totalChunks: audioChunks.length,
-        progress: Math.round((chunk.index / audioChunks.length) * 100),
-      });
-
-      const segments = await step.run(
-        `transcribe-chunk-${chunk.index + 1}`,
-        async () => {
-          console.log(
-            `[inngest] Step 3: Transcribing chunk ${chunk.index + 1} of ${audioChunks.length}...`,
-            { jobId }
-          );
-          const response = await fetch(chunk.url, { cache: "no-store" });
-          if (!response.ok) {
-            throw new Error(`Could not download audio chunk ${chunk.index + 1}.`);
-          }
-
-          const buffer = Buffer.from(await response.arrayBuffer());
-          const file = new File([buffer], `chunk-${chunk.index + 1}.mp3`, {
-            type: "audio/mpeg",
-          });
-          const groq = groqTranscriptionClient();
-          const transcription = await groq.audio.transcriptions.create({
-            file,
-            model: transcriptionModel,
-            response_format: "verbose_json",
-            timestamp_granularities: ["segment", "word"],
-          });
-
-          return offsetTranscriptSegments(
-            segmentsFromTranscription(transcription),
-            chunk.index * SERVER_AUDIO_CHUNK_SECONDS
-          );
-        }
+    const transcriptSegments = await step.run("transcribe-audio", async () => {
+      console.log(
+        "[inngest] Step 2: Sending uploaded audio directly to Groq Whisper...",
+        { jobId }
       );
 
-      transcriptSegments.push(...segments);
-    }
+      const response = await fetch(audioBlobUrl, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        throw new Error("Could not download the uploaded audio.");
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.byteLength === 0) {
+        throw new Error("The uploaded audio file is empty.");
+      }
+      if (buffer.byteLength > MAX_GROQ_AUDIO_BYTES) {
+        throw new Error(
+          "The extracted audio is too large for transcription. Try a video under 90 minutes."
+        );
+      }
+
+      const file = new File([buffer], `audio-${jobId}.mp3`, {
+        type: "audio/mpeg",
+      });
+      const groq = groqTranscriptionClient();
+      const transcription = await groq.audio.transcriptions.create({
+        file,
+        model: "whisper-large-v3",
+        response_format: "verbose_json",
+        timestamp_granularities: ["segment", "word"],
+      });
+
+      return segmentsFromTranscription(transcription);
+    });
 
     transcriptSegments.sort((a, b) => a.start - b.start);
     const transcript = buildTranscriptText(transcriptSegments);
@@ -303,15 +262,18 @@ export const processVideo = inngest.createFunction(
 
     await publishUpdate(jobId, {
       stage: "analyzing",
-      message: "Analyzing transcript...",
-      progress: 80,
+      message: "AI is finding the best moments...",
+      progress: 75,
     });
 
     const clips = await step.run("find-clips", async () => {
-      console.log("[inngest] Step 4: Analyzing transcript with free AI providers...", {
-        jobId,
-        segments: transcriptSegments.length,
-      });
+      console.log(
+        "[inngest] Step 3: Analyzing transcript with free AI providers...",
+        {
+          jobId,
+          segments: transcriptSegments.length,
+        }
+      );
 
       return analyzeTranscriptWithFallback(
         transcript,
@@ -321,7 +283,7 @@ export const processVideo = inngest.createFunction(
     });
 
     await step.run("save-clips", async () => {
-      console.log("[inngest] Step 5: Saving clips to Supabase...", {
+      console.log("[inngest] Step 4: Saving clips to Supabase...", {
         jobId,
         clips: clips.length,
       });
@@ -357,7 +319,7 @@ export const processVideo = inngest.createFunction(
     });
 
     await step.run("mark-job-completed", async () => {
-      console.log("[inngest] Step 6: Marking job as completed...", { jobId });
+      console.log("[inngest] Step 5: Marking job as completed...", { jobId });
       const admin = createAdminClient();
       const { error } = await admin
         .from("video_jobs")

@@ -46,7 +46,7 @@ Clippboard combines AI moment detection, transcription, automatic reframing, ani
 Video rendering runs entirely in the browser:
 
 1. The browser extracts a small audio file for transcription.
-2. OpenAI Whisper generates word-level timestamps and GPT-4o identifies clip moments.
+2. Groq Whisper generates word-level timestamps, then Gemini, OpenRouter, and Groq identify clip moments with automatic fallback.
 3. Kutlass and FFmpeg WASM render the final video locally on the user's machine.
 
 Raw source video is not uploaded to Clippboard servers for rendering. Optional social publishing uploads only the finished rendered clip to a public Supabase Storage bucket so TikTok and YouTube can fetch it.

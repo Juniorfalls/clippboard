@@ -60,7 +60,7 @@ export class RealAIAnalyzer implements IAIAnalyzer {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          blobUrl,
+          audioBlobUrl: blobUrl,
           prompt,
           chunkStart,
           processingOptions,
