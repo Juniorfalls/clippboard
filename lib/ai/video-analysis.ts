@@ -56,17 +56,22 @@ export function cleanAndParseJSON(content: string): unknown | null {
     .trim();
 
   const candidates = [text, fenced];
-  const objectMatch = fenced.match(/\{[\s\S]*\}/);
-  if (objectMatch) candidates.push(objectMatch[0]);
 
-  const arrayMatch = fenced.match(/\[[\s\S]*\]/);
-  if (arrayMatch) candidates.push(arrayMatch[0]);
-
-  for (const candidate of new Set(candidates)) {
+  for (const candidate of candidates) {
     try {
       return JSON.parse(candidate);
     } catch {
       // Try the next extraction strategy.
+    }
+  }
+
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start !== -1 && end !== -1 && end > start) {
+    try {
+      return JSON.parse(text.substring(start, end + 1));
+    } catch {
+      // Fall through to the raw-output log.
     }
   }
 
@@ -267,7 +272,6 @@ export async function analyzeTranscriptWithProvider(
   const completion = await client.chat.completions.create({
     model: provider.model,
     temperature: 0.2,
-    response_format: { type: "json_object" },
     messages: [
       {
         role: "system",

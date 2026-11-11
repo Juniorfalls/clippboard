@@ -61,9 +61,9 @@ function getGroqFailedGeneration(error: unknown) {
 }
 
 const ANALYSIS_FALLBACK_CHAIN = [
+  ANALYSIS_PROVIDERS[2],
   ANALYSIS_PROVIDERS[0],
   ANALYSIS_PROVIDERS[1],
-  ANALYSIS_PROVIDERS[2],
 ] as const;
 
 async function markJobAnalysisProcessing(jobId: string) {
@@ -176,11 +176,7 @@ export async function analyzeTranscriptWithFallback(
           "Groq JSON Failure. Raw Output:",
           getGroqFailedGeneration(error)
         );
-        console.warn(
-          nextProvider
-            ? `Groq failed, falling back to ${nextProvider.name}...`
-            : "Groq failed. No fallback providers remain."
-        );
+        console.warn("Groq failed, falling back to Gemini...");
       }
 
       const rateLimited = isRateLimitError(error);
@@ -194,9 +190,7 @@ export async function analyzeTranscriptWithFallback(
         : "No providers remain.";
 
       if (provider.name === "OpenRouter" && rateLimited) {
-        console.warn(
-          "OpenRouter rate limit hit, falling back to Groq LLM..."
-        );
+        console.warn(`OpenRouter rate limit hit. ${fallbackMessage}`);
       } else if (rateLimited) {
         console.warn(
           `[ai] ${provider.name} exhausted its retries after 429 rate limits. ${fallbackMessage}`
