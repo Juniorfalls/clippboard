@@ -565,22 +565,32 @@ export function WorkspaceDashboard({
         throw new Error("The rendered clip could not be read.");
       }
 
-      let blob: Blob;
+      let arrayBuffer: ArrayBuffer;
       try {
-        blob = await response.blob();
+        arrayBuffer = await response.arrayBuffer();
       } catch {
         throw new Error("The rendered clip could not be read.");
       }
 
-      console.log("Rendered Blob Size:", blob.size);
-
-      if (blob.size === 0) {
+      if (arrayBuffer.byteLength === 0) {
         throw new Error("The rendered clip is empty.");
       }
 
-      const fileToUpload = new File([blob], `clip-${clip.id}.mp4`, {
-        type: "video/mp4",
-      });
+      const fileToUpload = new File(
+        [arrayBuffer],
+        `clip-${clip.id}.mp4`,
+        { type: "video/mp4" }
+      );
+
+      console.log(
+        "Uploading file:",
+        fileToUpload.name,
+        "Size:",
+        fileToUpload.size,
+        "Type:",
+        fileToUpload.type
+      );
+
       const uploaded = await upload(
         `rendered/${userId}/${fileToUpload.name}`,
         fileToUpload,
