@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { CheckoutButton } from "@/components/CheckoutButton";
+import { CryptoCheckoutButton } from "@/components/CryptoCheckoutButton";
 import { CheckoutResume } from "@/components/CheckoutResume";
 import { Logo, LogoMark } from "@/components/Logo";
 import { cn } from "@/lib/utils";
@@ -619,18 +620,21 @@ export default function HomePage({
                       ))}
                     </ul>
                     {tier.plan ? (
-                      <CheckoutButton
-                        plan={tier.plan}
-                        className={cn(
-                          "mt-8 inline-flex items-center justify-center rounded-2 px-5 py-3 text-[14px] font-semibold duration-200",
-                          tier.highlighted
-                            ? "bg-brand-blue text-soft-black hover:bg-brand-blue-hover"
-                            : "border border-border-gray bg-white text-soft-black hover:bg-warm-white",
-                          focusRing
-                        )}
-                      >
-                        {tier.cta}
-                      </CheckoutButton>
+                      <div className="mt-8 flex flex-col gap-3">
+                        <CheckoutButton
+                          plan={tier.plan}
+                          className={cn(
+                            "inline-flex items-center justify-center rounded-2 px-5 py-3 text-[14px] font-semibold duration-200",
+                            tier.highlighted
+                              ? "bg-brand-blue text-soft-black hover:bg-brand-blue-hover"
+                              : "border border-border-gray bg-white text-soft-black hover:bg-warm-white",
+                            focusRing
+                          )}
+                        >
+                          {tier.cta}
+                        </CheckoutButton>
+                        <CryptoCheckoutButton plan={tier.plan} />
+                      </div>
                     ) : (
                       <Link
                         href={tier.href}
