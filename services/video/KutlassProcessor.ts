@@ -34,6 +34,50 @@ function getBrollDimensions(options: ProcessingOptions) {
   return { width: 1920, height: 1080 };
 }
 
+async function buildWatermarkPng(): Promise<Uint8Array | null> {
+  if (typeof document === 'undefined') return null;
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const logo = new Image();
+    logo.onload = () => resolve(logo);
+    logo.onerror = () => reject(new Error('Could not load /logo.png.'));
+    logo.src = '/logo.png';
+  });
+
+  const scale = 2;
+  const iconSize = 32 * scale;
+  const padding = 4 * scale;
+  const gap = 10 * scale;
+  const fontSize = 16 * scale;
+  const label = 'Clippboard';
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+
+  context.font = `bold ${fontSize}px sans-serif`;
+  const textWidth = context.measureText(label).width;
+  canvas.width = Math.ceil(padding * 2 + iconSize + gap + textWidth);
+  canvas.height = iconSize + padding * 2;
+
+  const draw = canvas.getContext('2d');
+  if (!draw) return null;
+
+  draw.drawImage(image, padding, padding, iconSize, iconSize);
+  draw.font = `bold ${fontSize}px sans-serif`;
+  draw.textBaseline = 'middle';
+  draw.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  draw.shadowColor = 'rgba(0, 0, 0, 0.55)';
+  draw.shadowBlur = 6;
+  draw.shadowOffsetY = 1;
+  draw.fillText(label, padding + iconSize + gap, canvas.height / 2);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/png');
+  });
+  if (!blob) return null;
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
 function buildPaneXExpression(
   points: FaceTrack['points'],
   selectCenter: (point: FaceTrack['points'][number]) => number,
@@ -422,16 +466,16 @@ export class KutlassProcessor implements IVideoProcessor {
 
       if (options.addWatermark) {
         try {
-          const response = await fetch('/logo.png');
-          if (response.ok) {
-            const data = new Uint8Array(await response.arrayBuffer());
-            if (data.byteLength > 0) {
-              await ffmpeg.writeFile(watermarkFileName, data);
-              hasWatermark = true;
-            }
+          const data = await buildWatermarkPng();
+          if (data && data.byteLength > 0) {
+            await ffmpeg.writeFile(watermarkFileName, data);
+            hasWatermark = true;
           }
         } catch (error) {
-          console.warn('[KutlassProcessor] Could not load the watermark logo.', error);
+          console.warn(
+            '[KutlassProcessor] Could not build the watermark logo.',
+            error
+          );
         }
       }
 

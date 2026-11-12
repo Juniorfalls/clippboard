@@ -31,12 +31,19 @@ async function getFaceModel(): Promise<BlazeFaceModel> {
       }
 
       await tf.ready();
-      return blazeface.load({
-        maxFaces: 2,
-        scoreThreshold: 0.5,
-        modelUrl:
-          "https://storage.googleapis.com/tfjs-models/savedmodel/blazeface/model.json",
-      });
+
+      try {
+        return await blazeface.load({
+          maxFaces: 2,
+          scoreThreshold: 0.5,
+        });
+      } catch (error) {
+        console.warn(
+          "[face-tracker] BlazeFace could not load; skipping face tracking.",
+          error
+        );
+        throw error;
+      }
     })().catch((error) => {
       modelPromise = null;
       throw error;
