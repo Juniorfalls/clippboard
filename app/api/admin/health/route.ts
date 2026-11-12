@@ -15,7 +15,7 @@ type ProviderStatus = {
 const REQUEST_TIMEOUT_MS = 10_000;
 
 const GEMINI_MODEL = "gemini-2.5-flash";
-const OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free";
+const OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free";
 const GROQ_MODEL = "openai/gpt-oss-20b";
 
 function errorMessage(error: unknown) {

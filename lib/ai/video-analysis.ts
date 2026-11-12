@@ -151,7 +151,7 @@ export const ANALYSIS_PROVIDERS = [
     name: "OpenRouter",
     key: "OPENROUTER_API_KEY",
     baseURL: "https://openrouter.ai/api/v1",
-    model: "meta-llama/llama-3.3-70b-instruct:free",
+    model: "google/gemini-2.0-flash-exp:free",
   },
   {
     name: "Groq",
