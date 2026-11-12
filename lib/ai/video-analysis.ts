@@ -272,6 +272,7 @@ export async function analyzeTranscriptWithProvider(
   const completion = await client.chat.completions.create({
     model: provider.model,
     temperature: 0.2,
+    max_tokens: 4096,
     messages: [
       {
         role: "system",
@@ -295,6 +296,9 @@ Return up to ${clipLimit} clips. If there are not enough engaging moments, retur
 
   const content = completion.choices[0]?.message?.content;
   if (typeof content !== "string" || content.trim().length === 0) {
+    if (provider.name === "Groq") {
+      throw new Error("Groq returned an empty response");
+    }
     throw new Error(`${provider.name} returned an empty response.`);
   }
 

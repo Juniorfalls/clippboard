@@ -170,6 +170,15 @@ export async function analyzeTranscriptWithFallback(
         error instanceof Error ? error.message : String(error);
       const isJsonFailure =
         status === 400 || /json|failed to validate/i.test(errorMessage);
+      const isEmptyResponse = /empty response/i.test(errorMessage);
+
+      if (provider.name === "Groq" && isEmptyResponse) {
+        console.warn(
+          nextProvider
+            ? "Groq returned empty, falling back to Gemini..."
+            : "Groq returned empty. No fallback providers remain."
+        );
+      }
 
       if (status === 404) {
         console.warn(
