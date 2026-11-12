@@ -6,7 +6,6 @@ import {
   Heading,
   Hr,
   Html,
-  Img,
   Link,
   Preview,
   Section,
@@ -54,17 +53,17 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
               lineHeight: "32px",
             }}
           >
-            <Img
+            <img
               src={`${SITE_URL}/icon.png`}
               width="32"
               height="32"
-              alt="Clippboard"
+              alt="Clippboard Icon"
               style={{
                 display: "inline-block",
                 width: "32px",
                 height: "32px",
                 verticalAlign: "middle",
-                border: 0,
+                marginRight: "10px",
               }}
             />
             <span
@@ -73,7 +72,6 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
                 fontSize: "24px",
                 fontWeight: "bold",
                 color: "#1C1C1C",
-                marginLeft: "8px",
                 verticalAlign: "middle",
                 lineHeight: "32px",
               }}
