@@ -157,7 +157,7 @@ export const ANALYSIS_PROVIDERS = [
     name: "Groq",
     key: "GROQ_API_KEY",
     baseURL: "https://api.groq.com/openai/v1",
-    model: "llama-3.3-70b-versatile",
+    model: "openai/gpt-oss-120b",
   },
 ] as const;
 

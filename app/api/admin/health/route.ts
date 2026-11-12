@@ -16,7 +16,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 
 const GEMINI_MODEL = "gemini-1.5-flash-lite";
 const OPENROUTER_MODEL = "openrouter/free";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_MODEL = "openai/gpt-oss-120b";
 
 function errorMessage(error: unknown) {
   if (error instanceof Error) {
