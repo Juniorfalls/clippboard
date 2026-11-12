@@ -1,3 +1,4 @@
+import "@tensorflow/tfjs-backend-webgl";
 import type { BlazeFaceModel, NormalizedFace } from "@tensorflow-models/blazeface";
 
 export type FaceTrackPoint = {
@@ -27,7 +28,12 @@ async function getFaceModel(): Promise<BlazeFaceModel> {
       }
 
       await tf.ready();
-      return blazeface.load({ maxFaces: 2, scoreThreshold: 0.5 });
+      return blazeface.load({
+        maxFaces: 2,
+        scoreThreshold: 0.5,
+        modelUrl:
+          "https://storage.googleapis.com/tfjs-models/savedmodel/blazeface/model.json",
+      });
     })().catch((error) => {
       modelPromise = null;
       throw error;
