@@ -17,6 +17,8 @@ type MagicLinkEmailProps = {
   token: string;
 };
 
+const SITE_URL = "https://clippboard-lilac.vercel.app";
+
 export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
   return (
     <Html>
@@ -37,36 +39,58 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
           style={{
             width: "100%",
             maxWidth: "600px",
-            margin: "0 auto",
-            padding: "40px",
+            margin: "40px auto",
+            padding: "48px 40px",
             backgroundColor: "#FFFFFF",
             border: "1px solid #E5E7EB",
-            borderRadius: "12px",
-            boxShadow: "0 8px 24px rgba(28, 28, 28, 0.06)",
+            borderRadius: "16px",
+            boxShadow: "0 12px 32px rgba(28, 28, 28, 0.08)",
           }}
         >
-          <Section style={{ margin: "0 0 32px", textAlign: "center" }}>
+          <Section
+            style={{
+              margin: 0,
+              textAlign: "center",
+              lineHeight: "32px",
+            }}
+          >
             <Img
-              src="https://clippboard-lilac.vercel.app/logo.png"
-              width="120"
+              src={`${SITE_URL}/icon.png`}
+              width="32"
+              height="32"
               alt="Clippboard"
               style={{
-                display: "block",
-                margin: "0 auto",
-                maxWidth: "100%",
-                height: "auto",
+                display: "inline-block",
+                width: "32px",
+                height: "32px",
+                verticalAlign: "middle",
+                border: 0,
               }}
             />
+            <span
+              style={{
+                display: "inline-block",
+                fontSize: "24px",
+                fontWeight: "bold",
+                color: "#1C1C1C",
+                marginLeft: "8px",
+                verticalAlign: "middle",
+                lineHeight: "32px",
+              }}
+            >
+              Clippboard
+            </span>
           </Section>
 
           <Heading
             style={{
-              margin: 0,
+              margin: "32px 0 0",
               color: "#1C1C1C",
               fontSize: "28px",
               fontWeight: 700,
               letterSpacing: "-0.02em",
               lineHeight: "1.2",
+              textAlign: "center",
             }}
           >
             Your Login Code
@@ -78,6 +102,7 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
               color: "#666666",
               fontSize: "16px",
               lineHeight: "1.6",
+              textAlign: "center",
             }}
           >
             Enter this 6-digit code to sign in. It expires in 10 minutes.
@@ -85,10 +110,10 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
 
           <Section
             style={{
-              margin: "24px 0 0",
+              margin: "32px 0",
               padding: "24px",
-              backgroundColor: "#F9F7F4",
-              borderRadius: "8px",
+              backgroundColor: "#F0F4FF",
+              borderRadius: "12px",
               textAlign: "center",
             }}
           >
@@ -96,10 +121,11 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
               style={{
                 margin: 0,
                 color: "#3B82F6",
-                fontSize: "36px",
-                fontWeight: 700,
-                letterSpacing: "8px",
-                lineHeight: "1.2",
+                fontSize: "42px",
+                fontWeight: "bold",
+                fontFamily: "monospace",
+                letterSpacing: "12px",
+                lineHeight: "1.25",
               }}
             >
               {token}
@@ -108,7 +134,7 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
 
           <Hr
             style={{
-              margin: "32px 0 20px",
+              margin: "40px 0 24px",
               borderColor: "#E5E7EB",
             }}
           />
@@ -117,7 +143,7 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
             style={{
               margin: 0,
               color: "#999999",
-              fontSize: "12px",
+              fontSize: "13px",
               lineHeight: "1.6",
               textAlign: "center",
             }}
@@ -128,7 +154,31 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
 
           <Text
             style={{
-              margin: "8px 0 0",
+              margin: "16px 0 0",
+              color: "#3B82F6",
+              fontSize: "13px",
+              lineHeight: "1.6",
+              textAlign: "center",
+            }}
+          >
+            <Link
+              href={`${SITE_URL}/privacy`}
+              style={{ color: "#3B82F6", textDecoration: "none" }}
+            >
+              Privacy Policy
+            </Link>
+            <span style={{ color: "#999999" }}> • </span>
+            <Link
+              href={`${SITE_URL}/terms`}
+              style={{ color: "#3B82F6", textDecoration: "none" }}
+            >
+              Terms of Service
+            </Link>
+          </Text>
+
+          <Text
+            style={{
+              margin: "16px 0 0",
               color: "#999999",
               fontSize: "12px",
               lineHeight: "1.6",
@@ -136,30 +186,6 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
             }}
           >
             © 2026 Clippboard. All rights reserved.
-          </Text>
-
-          <Text
-            style={{
-              margin: "12px 0 0",
-              color: "#999999",
-              fontSize: "12px",
-              lineHeight: "1.6",
-              textAlign: "center",
-            }}
-          >
-            <Link
-              href="https://clippboard-lilac.vercel.app/privacy"
-              style={{ color: "#3B82F6", textDecoration: "underline" }}
-            >
-              Privacy Policy
-            </Link>
-            <span style={{ color: "#CCCCCC" }}> · </span>
-            <Link
-              href="https://clippboard-lilac.vercel.app/terms"
-              style={{ color: "#3B82F6", textDecoration: "underline" }}
-            >
-              Terms of Service
-            </Link>
           </Text>
         </Container>
       </Body>
