@@ -423,3 +423,4 @@ enabled = true
 
 [functions.send-email]
 verify_jwt = false
+entrypoint = './functions/send-email/index.tsx'
