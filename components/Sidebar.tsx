@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Logo, LogoMark } from "@/components/Logo";
 import { TeamSwitcher } from "@/components/TeamSwitcher";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
 
@@ -122,11 +123,7 @@ export function Sidebar({
     }
   }
 
-  const toggleLabel = isMobileOpen
-    ? "Close sidebar"
-    : isOpen
-      ? "Collapse sidebar"
-      : "Expand sidebar";
+  const toggleLabel = isMobileOpen || isOpen ? "Close sidebar" : "Open sidebar";
 
   return (
     <>
@@ -164,22 +161,24 @@ export function Sidebar({
             {showLabels ? <Logo /> : <LogoMark />}
           </Link>
 
-          <button
-            type="button"
-            onClick={isMobileOpen ? onMobileClose : onToggle}
-            aria-label={toggleLabel}
-            aria-expanded={isMobileOpen || isOpen}
-            className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-soft-black/60 duration-200 hover:bg-white hover:text-soft-black",
-              focusRing
-            )}
-          >
-            {isMobileOpen || isOpen ? (
-              <PanelLeftClose className="h-5 w-5" aria-hidden />
-            ) : (
-              <PanelLeftOpen className="h-5 w-5" aria-hidden />
-            )}
-          </button>
+          <Tooltip content={toggleLabel} side="right" delayDuration={200}>
+            <button
+              type="button"
+              onClick={isMobileOpen ? onMobileClose : onToggle}
+              aria-label={toggleLabel}
+              aria-expanded={isMobileOpen || isOpen}
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-soft-black/60 duration-200 hover:bg-white hover:text-soft-black",
+                focusRing
+              )}
+            >
+              {isMobileOpen || isOpen ? (
+                <PanelLeftClose className="h-5 w-5" aria-hidden />
+              ) : (
+                <PanelLeftOpen className="h-5 w-5" aria-hidden />
+              )}
+            </button>
+          </Tooltip>
         </div>
 
         {showLabels && (
