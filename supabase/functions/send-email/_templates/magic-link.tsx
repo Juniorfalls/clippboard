@@ -46,39 +46,43 @@ export function MagicLinkEmail({ token }: MagicLinkEmailProps) {
             boxShadow: "0 12px 32px rgba(28, 28, 28, 0.08)",
           }}
         >
-          <Section
-            style={{
-              margin: 0,
-              textAlign: "center",
-              lineHeight: "32px",
-            }}
+          <table
+            width="100%"
+            cellPadding="0"
+            cellSpacing="0"
+            border="0"
+            style={{ marginBottom: "32px" }}
           >
-            <img
-              src={`${SITE_URL}/icon.png`}
-              width="32"
-              height="32"
-              alt="Clippboard Icon"
-              style={{
-                display: "inline-block",
-                width: "32px",
-                height: "32px",
-                verticalAlign: "middle",
-                marginRight: "10px",
-              }}
-            />
-            <span
-              style={{
-                display: "inline-block",
-                fontSize: "24px",
-                fontWeight: "bold",
-                color: "#1C1C1C",
-                verticalAlign: "middle",
-                lineHeight: "32px",
-              }}
-            >
-              Clippboard
-            </span>
-          </Section>
+            <tr>
+              <td align="center">
+                <img
+                  src="https://clippboard-lilac.vercel.app/logo.png"
+                  width="48"
+                  height="48"
+                  alt="Clippboard Logo"
+                  style={{
+                    display: "inline-block",
+                    width: "48px",
+                    height: "48px",
+                    verticalAlign: "middle",
+                    marginRight: "10px",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: "bold",
+                    color: "#1C1C1C",
+                    verticalAlign: "middle",
+                    display: "inline-block",
+                    fontFamily: "sans-serif",
+                  }}
+                >
+                  Clippboard
+                </span>
+              </td>
+            </tr>
+          </table>
 
           <Heading
             style={{
