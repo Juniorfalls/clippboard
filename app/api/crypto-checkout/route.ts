@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { plan?: unknown }
+    | { plan?: unknown; source?: unknown }
     | null;
   const plan = body?.plan;
 
@@ -44,6 +44,10 @@ export async function POST(request: Request) {
   }
 
   const origin = new URL(request.url).origin;
+  const successUrl =
+    body?.source === "settings"
+      ? `${origin}/dashboard/settings?success=true&tab=billing`
+      : `${origin}/dashboard?crypto=success`;
   const priceAmount = PAYSTACK_PLAN_AMOUNTS[plan] / 100;
 
   try {
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
         order_id: user.id,
         order_description: `clippboard:${plan}`,
         ipn_callback_url: `${origin}/api/webhooks/crypto`,
-        success_url: `${origin}/dashboard?crypto=success`,
+        success_url: successUrl,
         cancel_url: `${origin}/#pricing`,
         is_fixed_rate: true,
         is_fee_paid_by_user: false,

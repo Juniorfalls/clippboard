@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { plan?: unknown }
+    | { plan?: unknown; source?: unknown }
     | null;
   const plan = body?.plan;
 
@@ -55,6 +55,10 @@ export async function POST(request: Request) {
   }
 
   const origin = new URL(request.url).origin;
+  const callbackUrl =
+    body?.source === "settings"
+      ? `${origin}/dashboard/settings?success=true&tab=billing`
+      : `${origin}/dashboard?success=true`;
   const reference = `clippboard_${user.id.slice(0, 8)}_${randomUUID()}`;
 
   try {
@@ -64,7 +68,7 @@ export async function POST(request: Request) {
       amount: PAYSTACK_PLAN_AMOUNTS[plan],
       currency: PAYSTACK_CURRENCY,
       reference,
-      callback_url: `${origin}/dashboard?success=true`,
+      callback_url: callbackUrl,
       metadata: JSON.stringify({ user_id: user.id, plan }),
     });
     const data = result.data as InitializeData | undefined;

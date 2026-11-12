@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import {
   Check,
   CreditCard,
@@ -15,6 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Plan } from "@/lib/plans";
@@ -116,11 +118,24 @@ export function SettingsPanel({
     []
   );
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const connected = params.get("social_connected");
     const error = params.get("social_error");
+    const success = params.get("success") === "true";
+    const requestedTab = params.get("tab");
+
+    if (requestedTab && TABS.some((item) => item.id === requestedTab)) {
+      setTab(requestedTab as Tab);
+    }
+
+    if (success) {
+      toast.success("Welcome to Pro! Your plan has been upgraded.");
+      window.setTimeout(() => router.refresh(), 1500);
+    }
 
     if (connected) {
       const label =
@@ -133,9 +148,11 @@ export function SettingsPanel({
       toast.error("Could not connect account", { description: error });
     }
 
-    if (connected || error) {
+    if (connected || error || success) {
       params.delete("social_connected");
       params.delete("social_error");
+      params.delete("success");
+      params.delete("tab");
       const query = params.toString();
       window.history.replaceState(
         {},
@@ -143,7 +160,7 @@ export function SettingsPanel({
         `${window.location.pathname}${query ? `?${query}` : ""}`
       );
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -404,15 +421,16 @@ export function SettingsPanel({
                   : "Agency includes everything in Pro plus Final Cut Pro XML export and MCP access."}
             </p>
 
-            <a
-              href="/api/billing-portal"
+            <button
+              type="button"
+              onClick={() => setIsUpgradeOpen(true)}
               className={cn(
                 "inline-flex w-fit items-center justify-center rounded-2 border border-border-gray bg-white px-5 py-3 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
                 focusRing
               )}
             >
-              Manage Subscription
-            </a>
+              {plan === "starter" ? "Upgrade Plan" : "Manage Subscription"}
+            </button>
           </section>
         )}
 
@@ -540,6 +558,12 @@ export function SettingsPanel({
           </section>
         )}
       </div>
+
+      <UpgradeModal
+        open={isUpgradeOpen}
+        onOpenChange={setIsUpgradeOpen}
+        currentPlan={plan}
+      />
     </div>
   );
 }
