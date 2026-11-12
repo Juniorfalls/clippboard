@@ -5,12 +5,15 @@ export type FaceTrackPoint = {
   time: number;
   centerX: number;
   secondaryCenterX?: number;
+  area?: number;
 };
 
 export type FaceTrack = {
   points: FaceTrackPoint[];
   width: number;
   height: number;
+  bestTime: number | null;
+  bestCenterX: number | null;
 };
 
 let modelPromise: Promise<BlazeFaceModel> | null = null;
@@ -86,14 +89,18 @@ function getFaceCenter(face: NormalizedFace | undefined) {
 export async function trackFaces(
   file: File,
   startTime: number,
-  endTime: number
+  endTime: number,
+  maxSamples = 60
 ): Promise<FaceTrack | null> {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return null;
   }
 
   const duration = Math.max(0.1, endTime - startTime);
-  const sampleCount = Math.min(60, Math.max(8, Math.ceil(duration)));
+  const sampleCount = Math.min(
+    Math.max(4, maxSamples),
+    Math.max(8, Math.ceil(duration))
+  );
   const interval = sampleCount > 1 ? duration / (sampleCount - 1) : duration;
 
   const video = document.createElement("video");
@@ -119,6 +126,8 @@ export async function trackFaces(
 
     const model = await getFaceModel();
     const points: FaceTrackPoint[] = [];
+    let bestFrame: { time: number; centerX: number; score: number } | null =
+      null;
 
     for (let index = 0; index < sampleCount; index += 1) {
       const offset = Math.min(duration, index * interval);
@@ -155,12 +164,24 @@ export async function trackFaces(
       const secondaryFace = detectedFaces[1];
 
       if (bestFace) {
+        const centerX = Math.min(
+          1,
+          Math.max(0, bestFace.centerX / canvas.width)
+        );
+        const centeredScore = 1 - Math.abs(centerX - 0.5);
+        const score = bestFace.area * centeredScore;
+
+        if (!bestFrame || score > bestFrame.score) {
+          bestFrame = { time: offset, centerX, score };
+        }
+
         points.push({
           time: offset,
-          centerX: Math.min(1, Math.max(0, bestFace.centerX / canvas.width)),
+          centerX,
           secondaryCenterX: secondaryFace
             ? Math.min(1, Math.max(0, secondaryFace.centerX / canvas.width))
             : undefined,
+          area: bestFace.area,
         });
       }
     }
@@ -184,7 +205,13 @@ export async function trackFaces(
       return { time: point.time, centerX, secondaryCenterX };
     });
 
-    return { points: smoothed, width, height };
+    return {
+      points: smoothed,
+      width,
+      height,
+      bestTime: bestFrame?.time ?? null,
+      bestCenterX: bestFrame?.centerX ?? null,
+    };
   } finally {
     video.removeAttribute("src");
     video.load();

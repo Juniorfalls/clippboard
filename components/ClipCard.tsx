@@ -5,6 +5,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Download,
   FileDown,
+  ImageDown,
   Lock,
   Minus,
   MoreHorizontal,
@@ -129,6 +130,40 @@ export async function downloadClip(
   }
 }
 
+export async function downloadThumbnail(clip: Clip) {
+  if (!clip.thumbnailUrl) {
+    toast.error("Thumbnail not available", {
+      description: "This clip does not have a generated thumbnail yet.",
+    });
+    return false;
+  }
+
+  try {
+    const response = await fetch(clip.thumbnailUrl);
+    if (!response.ok) throw new Error("missing");
+    const blob = await response.blob();
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = `${
+      clip.title.replace(/[^\w\s-]/g, "").trim() || "clip"
+    }-thumbnail.jpg`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(href);
+    toast.success("Thumbnail download started", {
+      description: clip.title,
+    });
+    return true;
+  } catch {
+    toast.error("Thumbnail download failed", {
+      description: "The thumbnail image could not be downloaded.",
+    });
+    return false;
+  }
+}
+
 function ProcessingPreview({
   clip,
   index,
@@ -243,12 +278,42 @@ export function ClipCard({
     clip.storageUrl || clip.url?.startsWith("https://")
   );
   const isProcessing = clip.status === "processing";
+  const clipHref = clip.storageUrl ?? clip.url;
 
   return (
     <article className="flex w-full flex-col overflow-hidden rounded-3 border border-gray-200 bg-white">
-      <div className="relative aspect-[9/16]">
+      <div
+        className={cn(
+          "relative",
+          isReady && clip.thumbnailUrl ? "aspect-video" : "aspect-[9/16]"
+        )}
+      >
         {isReady ? (
-          <VideoPreview clip={clip} />
+          clip.thumbnailUrl ? (
+            <a
+              href={clipHref}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open video for ${clip.title}`}
+              className={cn(
+                "group relative block h-full w-full overflow-hidden",
+                focusRing
+              )}
+            >
+              <img
+                src={clip.thumbnailUrl}
+                alt={`AI thumbnail for ${clip.title}`}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+              <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-soft-black/80 px-3 py-1.5 text-[12px] font-semibold text-warm-white opacity-90 duration-200 group-hover:opacity-100">
+                <Play className="h-3.5 w-3.5 fill-current" aria-hidden />
+                Play clip
+              </span>
+            </a>
+          ) : (
+            <VideoPreview clip={clip} />
+          )
         ) : isProcessing ? (
           <ProcessingPreview clip={clip} index={index} progress={progress} />
         ) : clip.status === "error" || isMissingVideo ? (
@@ -383,6 +448,18 @@ export function ClipCard({
                 >
                   <Download className="h-4 w-4 text-brand-blue" aria-hidden />
                   Download
+                </DropdownMenu.Item>
+
+                <DropdownMenu.Item
+                  onSelect={() => void downloadThumbnail(clip)}
+                  className={cn(
+                    "flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold text-soft-black outline-none duration-200",
+                    "data-[highlighted]:bg-warm-white",
+                    "focus-visible:ring-2 focus-visible:ring-brand-blue"
+                  )}
+                >
+                  <ImageDown className="h-4 w-4 text-brand-blue" aria-hidden />
+                  Download Thumbnail
                 </DropdownMenu.Item>
 
                 {onSchedule && canPublish && !isScheduled && (

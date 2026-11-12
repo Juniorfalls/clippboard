@@ -42,6 +42,7 @@ type ProjectClipRow = {
   virality_reason: string | null;
   metadata: Partial<Clip> | null;
   video_url: string | null;
+  thumbnail_url?: string | null;
   status: string | null;
 };
 
@@ -97,7 +98,7 @@ export default function ProjectDetailPage({
         const { data: clipRows, error: clipsError } = await supabase
           .from("clips")
           .select(
-            "id, title, duration, engagement_score, start_time, end_time, hook_text, virality_reason, metadata, video_url, status"
+            "id, title, duration, engagement_score, start_time, end_time, hook_text, virality_reason, metadata, video_url, thumbnail_url, status"
           )
           .eq("job_id", params.id)
           .eq("user_id", user.id)
@@ -139,6 +140,11 @@ export default function ProjectDetailPage({
               status: storedClipStatus(row.status, videoUrl),
               url: videoUrl,
               storageUrl: videoUrl,
+              thumbnailUrl:
+                typeof row.thumbnail_url === "string" &&
+                row.thumbnail_url.length > 0
+                  ? row.thumbnail_url
+                  : undefined,
             } satisfies Clip;
           })
         );

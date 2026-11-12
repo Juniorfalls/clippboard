@@ -35,6 +35,7 @@ export interface Clip {
   id: string;
   title: string;
   hookText: string; // Short on-screen hook shown for the first 3 seconds
+  thumbnailText?: string; // 2-4 word high-impact thumbnail headline
   startTime: number; // in seconds
   endTime: number;   // in seconds
   duration: number;
@@ -51,6 +52,7 @@ export interface Clip {
   publishPlatforms?: string[];
   url?: string;      // The final rendered video blob URL
   storageUrl?: string; // Public Supabase Storage URL used for publishing
+  thumbnailUrl?: string; // AI-generated thumbnail stored in Vercel Blob
 }
 
 export interface ProcessingOptions {

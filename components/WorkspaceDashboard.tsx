@@ -14,6 +14,7 @@ import { ClipSkeleton } from "@/components/ClipSkeleton";
 import { ClipGallery } from "@/components/ClipGallery";
 import type { PublishPayload } from "@/components/PublishModal";
 import { getVideoProcessor } from "@/services/video";
+import { generateClipThumbnail } from "@/services/video/thumbnail";
 import { extractAudio } from "@/lib/extract-audio";
 import { loadBrandKit, type BrandTemplate } from "@/lib/brand-kit";
 import {
@@ -107,6 +108,7 @@ type ClipRow = {
   virality_reason: string | null;
   metadata: Partial<Clip> | null;
   video_url?: string | null;
+  thumbnail_url?: string | null;
   status?: string | null;
   created_at?: string | null;
 };
@@ -218,7 +220,7 @@ export function WorkspaceDashboard({
         const { data, error } = await supabase
           .from("clips")
           .select(
-            "id, title, duration, engagement_score, start_time, end_time, hook_text, virality_reason, metadata, video_url, status, created_at"
+            "id, title, duration, engagement_score, start_time, end_time, hook_text, virality_reason, metadata, video_url, thumbnail_url, status, created_at"
           )
           .eq("user_id", userId)
           .order("created_at", { ascending: false });
@@ -249,6 +251,11 @@ export function WorkspaceDashboard({
             status: storedClipStatus(row.status, videoUrl),
             url: videoUrl,
             storageUrl: videoUrl,
+            thumbnailUrl:
+              typeof row.thumbnail_url === "string" &&
+              row.thumbnail_url.length > 0
+                ? row.thumbnail_url
+                : undefined,
           } satisfies Clip;
         });
 
@@ -524,6 +531,7 @@ export function WorkspaceDashboard({
         hook_text: clip.hookText,
         virality_reason: clip.viralityReason,
         video_url: clip.storageUrl ?? null,
+        thumbnail_url: clip.thumbnailUrl ?? null,
         status: clip.status,
         metadata: clip,
         updated_at: new Date().toISOString(),
@@ -618,6 +626,33 @@ export function WorkspaceDashboard({
       toast.error(`Upload failed: ${message}`, {
         description: "The clip is still available to download.",
       });
+      return null;
+    }
+  }
+
+  async function uploadThumbnail(clip: Clip, blob: Blob) {
+    try {
+      const file = new File([blob], `thumbnail-${clip.id}.jpg`, {
+        type: "image/jpeg",
+      });
+      const uploaded = await upload(
+        `thumbnails/${userId}/${file.name}`,
+        file,
+        {
+          access: "public",
+          handleUploadUrl: "/api/upload",
+          contentType: "image/jpeg",
+          clientPayload: JSON.stringify({ userId }),
+        }
+      );
+
+      if (!uploaded.url?.startsWith("https://")) {
+        throw new Error("The public thumbnail URL could not be created.");
+      }
+
+      return uploaded.url;
+    } catch (error) {
+      console.error("Thumbnail upload failed for clip:", clip.id, error);
       return null;
     }
   }
@@ -880,16 +915,33 @@ export function WorkspaceDashboard({
             continue;
           }
 
+          let thumbnailUrl: string | undefined;
+
+          try {
+            const thumbnailBlob = await generateClipThumbnail(sourceFile, clip);
+            if (thumbnailBlob) {
+              thumbnailUrl =
+                (await uploadThumbnail(clip, thumbnailBlob)) ?? undefined;
+            }
+          } catch (error) {
+            console.warn(
+              "[dashboard] Could not generate the clip thumbnail",
+              error
+            );
+          }
+
           const completedClip: Clip = {
             ...clip,
             status: "completed",
             url,
             storageUrl,
+            thumbnailUrl,
           };
           updateClip(clip.id, {
             status: "completed",
             url,
             storageUrl,
+            thumbnailUrl,
           });
           setClipsThisMonth((count) => count + 1);
           await persistClip(completedClip);
@@ -992,16 +1044,33 @@ export function WorkspaceDashboard({
         return;
       }
 
+      let thumbnailUrl: string | undefined;
+
+      try {
+        const thumbnailBlob = await generateClipThumbnail(
+          uploadedFile,
+          updatedClip
+        );
+        if (thumbnailBlob) {
+          thumbnailUrl =
+            (await uploadThumbnail(updatedClip, thumbnailBlob)) ?? undefined;
+        }
+      } catch (error) {
+        console.warn("[dashboard] Could not regenerate the thumbnail", error);
+      }
+
       updateClip(updatedClip.id, {
         status: "completed",
         url,
         storageUrl,
+        thumbnailUrl,
       });
       setClipsThisMonth((count) => count + 1);
       await persistClip({
         ...updatedClip,
         duration: updatedClip.endTime - updatedClip.startTime,
         storageUrl,
+        thumbnailUrl,
       });
       toast.success("Trim saved", { description: updatedClip.title });
     } catch (error) {

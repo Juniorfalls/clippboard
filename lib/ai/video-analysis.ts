@@ -25,6 +25,7 @@ const MomentSchema = z
   .object({
     title: z.string().trim().min(1).max(120),
     hookText: z.string().trim().min(1).max(80).optional(),
+    thumbnailText: z.string().trim().min(1).max(32).optional(),
     startTime: z.number().finite().min(0),
     endTime: z.number().finite().positive(),
     engagementScore: z.number().int().min(1).max(100),
@@ -164,10 +165,10 @@ export const ANALYSIS_PROVIDERS = [
 export type AnalysisProvider = (typeof ANALYSIS_PROVIDERS)[number];
 
 const STRICT_JSON_INSTRUCTION =
-  'You must return a valid JSON object. The JSON must match this exact structure: { "clips": [ { "startTime": number, "endTime": number, "title": string, "engagementScore": number, "viralityReason": string } ] }. CRITICAL: Only return the JSON. Do not include markdown formatting, code blocks (```json), explanations, or conversational text before or after the JSON.';
+  'You must return a valid JSON object. The JSON must match this exact structure: { "clips": [ { "startTime": number, "endTime": number, "title": string, "thumbnailText": string, "engagementScore": number, "viralityReason": string } ] }. CRITICAL: Only return the JSON. Do not include markdown formatting, code blocks (```json), explanations, or conversational text before or after the JSON.';
 
 const SYSTEM_PROMPT =
-  `You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought and be between 15 and 90 seconds long. For every clip, write a short, punchy on-screen hook of 3 to 6 words that earns attention in the first second. The hookText must be plain spoken-style text with no quotes, hashtags, emojis, or trailing punctuation. Rate each clip's engagement potential from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. For every clip, write a viralityReason: one concise sentence explaining the score, such as a strong emotional hook in the first 3 seconds or high shareability from a bold take. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. ${STRICT_JSON_INSTRUCTION} Return JSON only.`;
+  `You are an expert short-form video editor. Analyze the transcript and select exactly 10 engaging, self-contained moments for TikTok, Reels, or Shorts. Each moment must start and end on a complete thought and be between 15 and 90 seconds long. For every clip, write a short, punchy on-screen hook of 3 to 6 words that earns attention in the first second. The hookText must be plain spoken-style text with no quotes, hashtags, emojis, or trailing punctuation. For every clip, also write a thumbnailText of 2 to 4 uppercase words for a high-click-through YouTube or TikTok thumbnail, such as SAVE HOURS or STOP DOING THIS. Keep thumbnailText bold, specific, and under 32 characters, with no punctuation. Rate each clip's engagement potential from 1 to 100 based on hook strength, pacing, emotional payoff, and shareability. For every clip, write a viralityReason: one concise sentence explaining the score, such as a strong emotional hook in the first 3 seconds or high shareability from a bold take. Also identify filler words (um, uh, like, you know), long awkward pauses, false starts, repeated takes, and obviously unusable takes inside each clip. Return those as fillerCuts with absolute source timestamps, not clip-relative timestamps. Keep filler cuts tight around the offending audio and never cut more than 40% of a clip. Suggest 0 to 2 B-roll overlays only when visuals would strengthen a moment. B-roll startTime must be relative to the clip start, duration must be 1 to 3 seconds, and query must be a short stock-video search term. Use only timestamps present in the transcript. ${STRICT_JSON_INSTRUCTION} Return JSON only.`;
 
 async function buildClips(
   moments: Array<z.infer<typeof MomentSchema>>,
@@ -218,10 +219,24 @@ async function buildClips(
             suggestion.query.length > 0 && suggestion.duration >= 1
         );
 
+      const hookText = (moment.hookText ?? moment.title).trim().slice(0, 80);
+      const thumbnailText =
+        moment.thumbnailText?.trim().replace(/[^a-zA-Z0-9\s]/g, "").slice(0, 32) ||
+        hookText
+          .replace(/[^a-zA-Z0-9\s]/g, "")
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 4)
+          .join(" ")
+          .toUpperCase()
+          .slice(0, 32) ||
+        "WATCH THIS";
+
       return {
         id: randomUUID(),
         title: moment.title.trim(),
-        hookText: (moment.hookText ?? moment.title).trim().slice(0, 80),
+        hookText,
+        thumbnailText,
         startTime,
         endTime,
         duration: roundToHundredths(clipDuration),
@@ -289,7 +304,7 @@ ${prompt}
 Transcript with timestamps in seconds:
 ${transcript}
 
-Return up to ${clipLimit} clips. If there are not enough engaging moments, return fewer clips. Do not invent moments that do not exist. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, an engagementScore from 1 to 100, a one-sentence viralityReason explaining the score, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
+Return up to ${clipLimit} clips. If there are not enough engaging moments, return fewer clips. Do not invent moments that do not exist. Each clip must have a short title, a 3-6 word hookText, startTime in seconds, endTime in seconds, an engagementScore from 1 to 100, a one-sentence viralityReason explaining the score, a thumbnailText of 2-4 uppercase words, a fillerCuts array of absolute source-time ranges to remove, and a broll array with up to 2 short B-roll overlay suggestions. Use empty fillerCuts and broll arrays when nothing is useful.`,
       },
     ],
   });
