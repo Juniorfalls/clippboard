@@ -10,7 +10,6 @@ import {
 import {
   getErrorStatus,
   isRateLimitError,
-  withExponentialBackoff,
 } from "@/lib/ai/rate-limit-handler";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -140,25 +139,16 @@ export async function analyzeTranscriptWithFallback(
     }
 
     console.log(
-      `[ai] Attempting ${provider.name} (${provider.model}) with exponential backoff...`
+      `[ai] Attempting ${provider.name} (${provider.model})...`
     );
 
     try {
-      const clips = await withExponentialBackoff(
-        () =>
-          analyzeTranscriptWithProvider(
-            provider,
-            transcript,
-            prompt,
-            transcriptSegments,
-            clipLimit
-          ),
-        {
-          maxRetries: 3,
-          baseDelayMs: 1_000,
-          maxDelayMs: 32_000,
-          label: `${provider.name} analysis`,
-        }
+      const clips = await analyzeTranscriptWithProvider(
+        provider,
+        transcript,
+        prompt,
+        transcriptSegments,
+        clipLimit
       );
 
       console.log(`[ai] ${provider.name} analysis succeeded.`);
