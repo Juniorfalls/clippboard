@@ -8,9 +8,11 @@ import {
   Lock,
   Minus,
   MoreHorizontal,
+  Pencil,
   Play,
   Scissors,
   Send,
+  Trash2,
   Sparkles,
   TrendingDown,
   TrendingUp,
@@ -204,6 +206,8 @@ export function ClipCard({
   progress,
   onTrim,
   onSchedule,
+  onRename,
+  onDelete,
   transcript,
   plan,
   userId,
@@ -213,6 +217,8 @@ export function ClipCard({
   progress: number;
   onTrim?: (clip: Clip) => void;
   onSchedule?: (clip: Clip, payload: PublishPayload) => void;
+  onRename?: (clip: Clip) => void;
+  onDelete?: (clip: Clip) => void;
   transcript?: TranscriptSegment[];
   plan: Plan;
   userId: string;
@@ -367,6 +373,60 @@ export function ClipCard({
                 sideOffset={6}
                 className="z-50 min-w-[210px] overflow-hidden rounded-xl border border-border-gray bg-white p-1 shadow-xl"
               >
+                <DropdownMenu.Item
+                  onSelect={() => void downloadClip(clip)}
+                  className={cn(
+                    "flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold text-soft-black outline-none duration-200",
+                    "data-[highlighted]:bg-warm-white",
+                    "focus-visible:ring-2 focus-visible:ring-brand-blue"
+                  )}
+                >
+                  <Download className="h-4 w-4 text-brand-blue" aria-hidden />
+                  Download
+                </DropdownMenu.Item>
+
+                {onSchedule && canPublish && !isScheduled && (
+                  <DropdownMenu.Item
+                    onSelect={() => window.setTimeout(() => setIsPublishOpen(true), 0)}
+                    className={cn(
+                      "flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold text-soft-black outline-none duration-200",
+                      "data-[highlighted]:bg-warm-white",
+                      "focus-visible:ring-2 focus-visible:ring-brand-blue"
+                    )}
+                  >
+                    <Send className="h-4 w-4 text-brand-blue" aria-hidden />
+                    Publish
+                  </DropdownMenu.Item>
+                )}
+
+                {onRename && (
+                  <DropdownMenu.Item
+                    onSelect={() => window.setTimeout(() => onRename(clip), 0)}
+                    className={cn(
+                      "flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold text-soft-black outline-none duration-200",
+                      "data-[highlighted]:bg-warm-white",
+                      "focus-visible:ring-2 focus-visible:ring-brand-blue"
+                    )}
+                  >
+                    <Pencil className="h-4 w-4 text-brand-blue" aria-hidden />
+                    Rename
+                  </DropdownMenu.Item>
+                )}
+
+                {onDelete && (
+                  <DropdownMenu.Item
+                    onSelect={() => window.setTimeout(() => onDelete(clip), 0)}
+                    className={cn(
+                      "flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold text-red-600 outline-none duration-200",
+                      "data-[highlighted]:bg-red-50",
+                      "focus-visible:ring-2 focus-visible:ring-red-500"
+                    )}
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                    Delete
+                  </DropdownMenu.Item>
+                )}
+
                 <DropdownMenu.Item
                   onSelect={() => {
                     if (plan !== "agency") {

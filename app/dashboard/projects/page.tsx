@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   AlertTriangle,
   FolderOpen,
   Loader2,
+  MoreVertical,
+  Pencil,
   Plus,
   Trash2,
   X,
@@ -42,10 +46,14 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<VideoJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [jobToDelete, setJobToDelete] = useState<VideoJob | null>(null);
+  const [jobToRename, setJobToRename] = useState<VideoJob | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +97,49 @@ export default function ProjectsPage() {
       cancelled = true;
     };
   }, []);
+
+  function openRenameModal(job: VideoJob) {
+    setJobToRename(job);
+    setRenameValue(job.source_name ?? "");
+  }
+
+  async function handleRenameProject() {
+    if (!jobToRename || isRenaming) return;
+    const nextName = renameValue.trim();
+
+    if (!nextName) {
+      toast.error("Project name is required.");
+      return;
+    }
+
+    setIsRenaming(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("video_jobs")
+        .update({ source_name: nextName })
+        .eq("id", jobToRename.id);
+
+      if (error) throw error;
+
+      setJobs((previous) =>
+        previous.map((job) =>
+          job.id === jobToRename.id ? { ...job, source_name: nextName } : job
+        )
+      );
+      setJobToRename(null);
+      toast.success("Project renamed successfully.");
+    } catch (error) {
+      console.error("[projects] Could not rename project", error);
+      toast.error("Could not rename project", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setIsRenaming(false);
+    }
+  }
 
   async function handleDeleteProject() {
     if (!jobToDelete || isDeleting) return;
@@ -180,12 +231,30 @@ export default function ProjectsPage() {
 
               return (
                 <li key={job.id}>
-                  <article className="flex h-full flex-col gap-5 rounded-3 border border-gray-200 bg-white p-5">
+                  <article
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => router.push(`/dashboard/projects/${job.id}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        router.push(`/dashboard/projects/${job.id}`);
+                      }
+                    }}
+                    className={cn(
+                      "flex h-full cursor-pointer flex-col gap-5 rounded-3 border border-gray-200 bg-white p-5 duration-200 hover:border-brand-blue-light hover:shadow-md",
+                      focusRing
+                    )}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2 bg-brand-blue-light text-brand-blue">
                         <FolderOpen className="h-5 w-5" aria-hidden />
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div
+                        className="flex items-center gap-2"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
                         <span
                           className={cn(
                             "rounded-full border px-2.5 py-1 text-[11px] font-bold",
@@ -194,17 +263,50 @@ export default function ProjectsPage() {
                         >
                           {status}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setJobToDelete(job)}
-                          aria-label={`Delete project ${job.source_name || "Untitled video"}`}
-                          className={cn(
-                            "flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors duration-200 hover:bg-red-50 hover:text-red-500",
-                            focusRing
-                          )}
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                        </button>
+                        <DropdownMenu.Root>
+                          <DropdownMenu.Trigger asChild>
+                            <button
+                              type="button"
+                              aria-label={`Project options for ${job.source_name || "Untitled video"}`}
+                              className={cn(
+                                "flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 duration-200 hover:bg-warm-white hover:text-soft-black",
+                                focusRing
+                              )}
+                            >
+                              <MoreVertical className="h-4 w-4" aria-hidden />
+                            </button>
+                          </DropdownMenu.Trigger>
+                          <DropdownMenu.Portal>
+                            <DropdownMenu.Content
+                              align="end"
+                              sideOffset={6}
+                              className="z-50 min-w-[180px] overflow-hidden rounded-xl border border-border-gray bg-white p-1 shadow-xl"
+                            >
+                              <DropdownMenu.Item
+                                onSelect={() => openRenameModal(job)}
+                                className={cn(
+                                  "flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold text-soft-black outline-none duration-200",
+                                  "data-[highlighted]:bg-warm-white",
+                                  "focus-visible:ring-2 focus-visible:ring-brand-blue"
+                                )}
+                              >
+                                <Pencil className="h-4 w-4 text-brand-blue" aria-hidden />
+                                Rename
+                              </DropdownMenu.Item>
+                              <DropdownMenu.Item
+                                onSelect={() => setJobToDelete(job)}
+                                className={cn(
+                                  "flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-[14px] font-semibold text-red-600 outline-none duration-200",
+                                  "data-[highlighted]:bg-red-50",
+                                  "focus-visible:ring-2 focus-visible:ring-red-500"
+                                )}
+                              >
+                                <Trash2 className="h-4 w-4" aria-hidden />
+                                Delete
+                              </DropdownMenu.Item>
+                            </DropdownMenu.Content>
+                          </DropdownMenu.Portal>
+                        </DropdownMenu.Root>
                       </div>
                     </div>
 
@@ -229,6 +331,106 @@ export default function ProjectsPage() {
           </ul>
         </section>
       )}
+
+      <Dialog.Root
+        open={Boolean(jobToRename)}
+        onOpenChange={(open) => {
+          if (!open && !isRenaming) setJobToRename(null);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-soft-black/50 backdrop-blur-sm" />
+          <Dialog.Content
+            className={cn(
+              "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3 border border-border-gray bg-white p-6 shadow-xl",
+              focusRing
+            )}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2 bg-brand-blue-light text-brand-blue">
+                <Pencil className="h-6 w-6" aria-hidden />
+              </span>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  aria-label="Close rename dialog"
+                  disabled={isRenaming}
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-full border border-border-gray bg-warm-white text-soft-black duration-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50",
+                    focusRing
+                  )}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            <Dialog.Title className="mt-5 text-[24px] font-bold leading-[1.25] text-soft-black">
+              Rename project
+            </Dialog.Title>
+            <Dialog.Description className="mt-2 text-[14px] leading-relaxed text-soft-black/60">
+              Give this project a name that is easy to find later.
+            </Dialog.Description>
+
+            <label
+              htmlFor="project-name"
+              className="mt-6 block text-[12px] font-bold uppercase tracking-wide text-soft-black/50"
+            >
+              Project name
+            </label>
+            <input
+              id="project-name"
+              type="text"
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void handleRenameProject();
+                }
+              }}
+              maxLength={240}
+              autoFocus
+              className={cn(
+                "mt-2 w-full rounded-2 border border-border-gray bg-white px-4 py-3 text-[15px] font-semibold text-soft-black placeholder:text-soft-black/35",
+                focusRing
+              )}
+            />
+
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  disabled={isRenaming}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-5 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white disabled:cursor-not-allowed disabled:opacity-50",
+                    focusRing
+                  )}
+                >
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                onClick={() => void handleRenameProject()}
+                disabled={isRenaming}
+                aria-busy={isRenaming}
+                className={cn(
+                  "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-5 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover disabled:cursor-not-allowed disabled:opacity-60",
+                  focusRing
+                )}
+              >
+                {isRenaming ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Pencil className="h-4 w-4" aria-hidden />
+                )}
+                {isRenaming ? "Saving..." : "Save changes"}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <Dialog.Root
         open={Boolean(jobToDelete)}
