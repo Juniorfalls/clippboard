@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { upload } from "@vercel/blob/client";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   AlertTriangle,
@@ -18,7 +19,13 @@ import type { PublishPayload } from "@/components/PublishModal";
 import { normalizePlan, type Plan } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/utils/supabase/client";
-import type { Clip, TranscriptSegment } from "@/types/video";
+import { getVideoProcessor } from "@/services/video";
+import { generateClipThumbnail } from "@/services/video/thumbnail";
+import type {
+  Clip,
+  ProcessingOptions,
+  TranscriptSegment,
+} from "@/types/video";
 
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
@@ -29,6 +36,7 @@ type ProjectJob = {
   status: string;
   created_at: string;
   transcript: TranscriptSegment[] | null;
+  options: Partial<ProcessingOptions> | null;
 };
 
 type ProjectClipRow = {
@@ -71,6 +79,8 @@ export default function ProjectDetailPage({
   const [renameValue, setRenameValue] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [trimmingClipId, setTrimmingClipId] = useState<string | null>(null);
+  const [trimProgress, setTrimProgress] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +97,7 @@ export default function ProjectDetailPage({
 
         const { data: jobData, error: jobError } = await supabase
           .from("video_jobs")
-          .select("id, source_name, status, created_at, transcript")
+          .select("id, source_name, status, created_at, transcript, options")
           .eq("id", params.id)
           .eq("user_id", user.id)
           .maybeSingle();
@@ -240,6 +250,191 @@ export default function ProjectDetailPage({
     }
   }
 
+  function updateClipClip(id: string, patch: Partial<Clip>) {
+    setClips((previous) =>
+      previous.map((clip) => (clip.id === id ? { ...clip, ...patch } : clip))
+    );
+  }
+
+  async function uploadFile(
+    path: string,
+    file: File,
+    contentType: string
+  ): Promise<string | null> {
+    try {
+      const uploaded = await upload(path, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload",
+        contentType,
+        clientPayload: JSON.stringify({ userId }),
+      });
+
+      return uploaded.url?.startsWith("https://") ? uploaded.url : null;
+    } catch (error) {
+      console.error("[project] Could not upload trimmed clip", error);
+      return null;
+    }
+  }
+
+  async function handleTrimClip(updatedClip: Clip) {
+    const clip = clips.find((item) => item.id === updatedClip.id);
+    const videoUrl = clip?.storageUrl ?? clip?.url;
+    if (!clip || !videoUrl || trimmingClipId) return;
+
+    const trimStart = Math.max(0, Math.min(updatedClip.startTime, clip.duration));
+    const trimEnd = Math.max(
+      trimStart + 1,
+      Math.min(updatedClip.endTime, clip.duration)
+    );
+    const duration = Math.min(clip.duration, trimEnd) - trimStart;
+
+    const previousStatus = clip.status;
+    setTrimmingClipId(clip.id);
+    setTrimProgress(0);
+    updateClipClip(clip.id, { status: "processing" });
+
+    try {
+      const response = await fetch(videoUrl);
+      if (!response.ok) throw new Error("The clip could not be read.");
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength === 0) throw new Error("The clip is empty.");
+
+      const sourceFile = new File([buffer], `trim-source-${clip.id}.mp4`, {
+        type: "video/mp4",
+      });
+      const renderedClip: Clip = {
+        ...clip,
+        startTime: trimStart,
+        endTime: trimStart + duration,
+        duration,
+        cutRanges: [],
+        fillerCuts: [],
+        silenceCuts: [],
+        removeFiller: false,
+        broll: [],
+        hookText: "",
+        voiceover: updatedClip.voiceover,
+      };
+      const options: ProcessingOptions = {
+        targetAspectRatio: job?.options?.targetAspectRatio ?? "9:16",
+        resolution: job?.options?.resolution ?? "1080p",
+        layout: job?.options?.layout ?? "single",
+        animationText: "",
+        animationStyle: "single-line",
+        brandColor: job?.options?.brandColor ?? "#3B82F6",
+        brandFont: job?.options?.brandFont ?? "Inter",
+        addWatermark: false,
+        removeSilences: false,
+        karaokeCaptions: false,
+        smartCrop: false,
+        transcript: [],
+      };
+
+      const processor = getVideoProcessor();
+      const renderedUrl = await processor.processClip(
+        sourceFile,
+        renderedClip,
+        options,
+        (progress) => setTrimProgress(Math.round(progress))
+      );
+      const renderedResponse = await fetch(renderedUrl);
+      if (!renderedResponse.ok) {
+        throw new Error("The trimmed clip could not be read.");
+      }
+      const renderedBuffer = await renderedResponse.arrayBuffer();
+      const renderedFile = new File(
+        [renderedBuffer],
+        `trimmed-${clip.id}.mp4`,
+        { type: "video/mp4" }
+      );
+      const newVideoUrl = await uploadFile(
+        `rendered/${userId}/trimmed-${clip.id}-${Date.now()}.mp4`,
+        renderedFile,
+        "video/mp4"
+      );
+      if (!newVideoUrl) throw new Error("The trimmed clip could not be saved.");
+
+      let thumbnailUrl = clip.thumbnailUrl;
+      try {
+        const thumbnailBlob = await generateClipThumbnail(sourceFile, {
+          ...renderedClip,
+          startTime: trimStart,
+          endTime: trimStart + duration,
+          duration,
+        });
+        if (thumbnailBlob) {
+          const thumbnailFile = new File(
+            [thumbnailBlob],
+            `thumbnail-${clip.id}.jpg`,
+            { type: "image/jpeg" }
+          );
+          const uploadedThumbnail = await uploadFile(
+            `thumbnails/${userId}/trimmed-${clip.id}-${Date.now()}.jpg`,
+            thumbnailFile,
+            "image/jpeg"
+          );
+          if (uploadedThumbnail) thumbnailUrl = uploadedThumbnail;
+        }
+      } catch (error) {
+        console.warn("[project] Could not regenerate the thumbnail", error);
+      }
+
+      const sourceStart = Math.min(
+        clip.endTime,
+        clip.startTime + trimStart
+      );
+      const sourceEnd = Math.min(clip.endTime, sourceStart + duration);
+      const nextClip: Clip = {
+        ...clip,
+        ...updatedClip,
+        startTime: sourceStart,
+        endTime: sourceEnd,
+        duration,
+        status: "completed",
+        url: newVideoUrl,
+        storageUrl: newVideoUrl,
+        thumbnailUrl,
+        cutRanges: [],
+        fillerCuts: [],
+        silenceCuts: [],
+        removeFiller: false,
+        broll: [],
+      };
+
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("clips")
+        .update({
+          start_time: sourceStart,
+          end_time: sourceEnd,
+          duration,
+          video_url: newVideoUrl,
+          thumbnail_url: thumbnailUrl ?? null,
+          status: "completed",
+          metadata: nextClip,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", clip.id)
+        .eq("user_id", userId);
+
+      if (error) throw error;
+
+      setClips((previous) =>
+        previous.map((item) => (item.id === clip.id ? nextClip : item))
+      );
+      toast.success("Trim saved", { description: clip.title });
+    } catch (error) {
+      updateClipClip(clip.id, { status: previousStatus });
+      toast.error("Could not trim clip", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setTrimmingClipId(null);
+      setTrimProgress(0);
+    }
+  }
+
   function handleScheduled(clip: Clip, payload: PublishPayload) {
     setClips((previous) =>
       previous.map((item) =>
@@ -324,11 +519,25 @@ export default function ProjectDetailPage({
               <ClipCard
                 clip={clip}
                 index={index}
-                progress={0}
+                progress={trimmingClipId === clip.id ? trimProgress : 0}
+                onTrim={handleTrimClip}
                 onSchedule={handleScheduled}
                 onRename={openRenameModal}
                 onDelete={setClipToDelete}
                 transcript={job?.transcript ?? []}
+                trimClip={{
+                  ...clip,
+                  startTime: 0,
+                  endTime: clip.duration,
+                  duration: clip.duration,
+                  cutRanges: [],
+                  fillerCuts: [],
+                  silenceCuts: [],
+                  removeFiller: false,
+                  broll: [],
+                  hookText: "",
+                }}
+                trimTranscript={[]}
                 plan={plan}
                 userId={userId}
               />

@@ -244,6 +244,8 @@ export function ClipCard({
   onRename,
   onDelete,
   transcript,
+  trimClip,
+  trimTranscript,
   plan,
   userId,
 }: {
@@ -255,6 +257,8 @@ export function ClipCard({
   onRename?: (clip: Clip) => void;
   onDelete?: (clip: Clip) => void;
   transcript?: TranscriptSegment[];
+  trimClip?: Clip;
+  trimTranscript?: TranscriptSegment[];
   plan: Plan;
   userId: string;
 }) {
@@ -611,11 +615,11 @@ export function ClipCard({
 
       {onTrim && (
         <TrimModal
-          clip={clip}
+          clip={trimClip ?? clip}
           open={isTrimOpen}
           onOpenChange={setIsTrimOpen}
           onSave={onTrim}
-          transcript={transcript}
+          transcript={trimTranscript ?? transcript}
         />
       )}
 
