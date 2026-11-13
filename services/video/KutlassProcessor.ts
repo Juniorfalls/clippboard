@@ -343,6 +343,7 @@ export class KutlassProcessor implements IVideoProcessor {
     const inputName = `caption-input-${id}.${getExtension(sourceFile.name)}`;
     const outputName = `caption-output-${id}.mp4`;
     const subtitleName = `captions-${id}.ass`;
+    const fontName = 'Inter-Regular.ttf';
     const duration = Math.max(0.1, clip.endTime - clip.startTime);
     const brollFileNames: string[] = [];
     const voiceoverFileName = `voiceover-${id}.mp3`;
@@ -366,6 +367,16 @@ export class KutlassProcessor implements IVideoProcessor {
 
     try {
       await ffmpeg.writeFile(inputName, await fetchFile(sourceFile));
+
+      try {
+        const fontData = await fetchFile('/fonts/Inter-Regular.ttf');
+        await ffmpeg.writeFile(fontName, fontData);
+      } catch (error) {
+        console.warn(
+          '[KutlassProcessor] Could not load the Inter font; captions may fall back to a default font.',
+          error
+        );
+      }
 
       const cuts = getRelativeCuts(
         clip,
@@ -395,7 +406,7 @@ export class KutlassProcessor implements IVideoProcessor {
         // Keep the subtitle filter self-contained: ffmpeg.wasm resolves
         // filter filenames against the virtual FS root, so no paths or
         // extra escaping are needed.
-        filters.push(`ass=${subtitleName}`);
+        filters.push(`ass=${subtitleName}:fontsdir=.`);
       }
 
       // libx264 rejects odd dimensions, so force even width and height last.
