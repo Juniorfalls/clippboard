@@ -34,8 +34,7 @@ async function getFaceModel(): Promise<BlazeFaceModel> {
 
       try {
         return await blazeface.load({
-          modelUrl:
-            "https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/model.json",
+          modelUrl: "/models/blazeface/model.json",
           maxFaces: 2,
           scoreThreshold: 0.5,
         });

@@ -8,9 +8,6 @@ import {
   TimeRange,
 } from '@/types/video';
 
-const SAMPLE_VIDEO_URL =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
-
 function createId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -331,23 +328,6 @@ export class KutlassProcessor implements IVideoProcessor {
     this.environmentReady = hasWebCodecs && hasWasm;
   }
 
-  private simulateRender(onProgress: (progress: number) => void): Promise<string> {
-    return new Promise((resolve) => {
-      let progress = 0;
-      onProgress(progress);
-
-      const interval = setInterval(() => {
-        progress = Math.min(progress + 5, 100);
-        onProgress(progress);
-
-        if (progress >= 100) {
-          clearInterval(interval);
-          resolve(SAMPLE_VIDEO_URL);
-        }
-      }, 150);
-    });
-  }
-
   private async renderWithCaptions(
     sourceFile: File,
     clip: Clip,
@@ -566,7 +546,9 @@ export class KutlassProcessor implements IVideoProcessor {
               '-map',
               hasVoiceover ? '[aout]' : '0:a?',
             ]
-          : ['-vf', filters.join(',')]),
+          : filters.length > 0
+            ? ['-vf', filters.join(',')]
+            : []),
         ...(audioFilters.length > 0 && !hasVoiceover
           ? ['-af', audioFilters.join(',')]
           : []),
@@ -702,28 +684,24 @@ export class KutlassProcessor implements IVideoProcessor {
         : 'No transcript captions available for this clip.'
     );
 
-    if (assContent || cropFilter || splitFilter || options.addWatermark) {
-      try {
-        return await this.renderWithCaptions(
-          sourceFile,
-          clip,
-          options,
-          assContent,
-          cropFilter,
-          splitFilter,
-          onProgress
-        );
-      } catch (error) {
-        console.error(
-          '[KutlassProcessor] Caption or face-crop render failed.',
-          error
-        );
-        throw error instanceof Error
-          ? error
-          : new Error('Video rendering failed. Please try a different video source.');
-      }
+    try {
+      return await this.renderWithCaptions(
+        sourceFile,
+        clip,
+        options,
+        assContent,
+        cropFilter,
+        splitFilter,
+        onProgress
+      );
+    } catch (error) {
+      console.error(
+        '[KutlassProcessor] FFmpeg render failed.',
+        error
+      );
+      throw error instanceof Error
+        ? error
+        : new Error('Video rendering failed. Please try a different video source.');
     }
-
-    return this.simulateRender(onProgress);
   }
 }
