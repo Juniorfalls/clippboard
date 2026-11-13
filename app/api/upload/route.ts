@@ -19,7 +19,19 @@ export async function POST(request: Request) {
     const jsonResponse = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async (_pathname, clientPayload) => {
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
+        console.log("[blob] Upload authorization requested", {
+          pathname,
+          blobTokenPresent: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
+          vercelOidcTokenPresent: Boolean(process.env.VERCEL_OIDC_TOKEN),
+        });
+
+        if (!process.env.BLOB_READ_WRITE_TOKEN) {
+          console.warn(
+            "[blob] BLOB_READ_WRITE_TOKEN is missing on the server. Client uploads will fail."
+          );
+        }
+
         const supabase = createClient();
         const {
           data: { user },

@@ -230,10 +230,12 @@ export function WorkspaceDashboard({
 
         const savedClips = ((data ?? []) as ClipRow[]).map((row) => {
           const metadata = row.metadata ?? {};
-          const videoUrl =
+          const rawVideoUrl =
             typeof row.video_url === "string" && row.video_url.length > 0
               ? row.video_url
               : undefined;
+          const videoUrl =
+            rawVideoUrl?.startsWith("https://") ? rawVideoUrl : undefined;
 
           return {
             ...metadata,
@@ -530,7 +532,9 @@ export function WorkspaceDashboard({
         end_time: clip.endTime,
         hook_text: clip.hookText,
         virality_reason: clip.viralityReason,
-        video_url: clip.storageUrl ?? null,
+        video_url:
+          clip.storageUrl ??
+          (clip.url?.startsWith("blob:") ? clip.url : null),
         thumbnail_url: clip.thumbnailUrl ?? null,
         status: clip.status,
         metadata: clip,
@@ -590,14 +594,15 @@ export function WorkspaceDashboard({
         { type: "video/mp4" }
       );
 
-      console.log(
-        "Uploading file:",
-        fileToUpload.name,
-        "Size:",
-        fileToUpload.size,
-        "Type:",
-        fileToUpload.type
-      );
+      if (!(fileToUpload instanceof File) || fileToUpload.type !== "video/mp4") {
+        throw new Error("The rendered clip is not a valid MP4 file.");
+      }
+
+      console.log("Uploading file:", {
+        name: fileToUpload.name,
+        size: fileToUpload.size,
+        type: fileToUpload.type,
+      });
 
       const uploaded = await upload(
         `rendered/${userId}/${fileToUpload.name}`,
@@ -616,15 +621,14 @@ export function WorkspaceDashboard({
       }
 
       return uploaded.url;
-    } catch (uploadError) {
-      console.error("Clip upload failed for clip:", clip.id);
-      console.error("Blob Upload Error Details:", uploadError);
+    } catch (error) {
+      console.error("Vercel Blob Upload Failed:", error);
+      console.error("Failed clip id:", clip.id);
       const message =
-        uploadError instanceof Error
-          ? uploadError.message
-          : String(uploadError);
+        error instanceof Error ? error.message : String(error);
       toast.error(`Upload failed: ${message}`, {
-        description: "The clip is still available to download.",
+        description:
+          "The clip is still available to preview and download in this session.",
       });
       return null;
     }
@@ -910,8 +914,10 @@ export function WorkspaceDashboard({
           const storageUrl = await uploadRenderedVideo(clip, url);
 
           if (!storageUrl) {
+            const localClip: Clip = { ...clip, status: "error", url };
             updateClip(clip.id, { status: "error", url });
             setClipsThisMonth((count) => count + 1);
+            await persistClip(localClip);
             continue;
           }
 
@@ -1039,8 +1045,14 @@ export function WorkspaceDashboard({
       const storageUrl = await uploadRenderedVideo(updatedClip, url);
 
       if (!storageUrl) {
+        const localClip: Clip = {
+          ...updatedClip,
+          status: "error",
+          url,
+        };
         updateClip(updatedClip.id, { status: "error", url });
         setClipsThisMonth((count) => count + 1);
+        await persistClip(localClip);
         return;
       }
 
