@@ -501,11 +501,16 @@ export function WorkspaceDashboard({
 
       setUploadedFile(null);
       setUploadedAudioUrl(null);
-      toast.error("Could not prepare audio", {
-        id: toastId,
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
+      console.error("Audio Extraction Failed:", error);
+      toast.error(
+        `Audio error: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+        {
+          id: toastId,
+          description: "Your video was not uploaded. Please try again.",
+        }
+      );
     } finally {
       if (uploadAbortRef.current === controller) {
         uploadAbortRef.current = null;

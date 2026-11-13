@@ -1,4 +1,5 @@
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 const FFMPEG_CORE_BASE_URL =
   "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
@@ -7,21 +8,34 @@ let ffmpegPromise: Promise<FFmpeg> | null = null;
 
 function createFfmpeg() {
   return import("@ffmpeg/ffmpeg").then(async ({ FFmpeg }) => {
-    const { toBlobURL } = await import("@ffmpeg/util");
     const ffmpeg = new FFmpeg();
 
-    await ffmpeg.load({
-      coreURL: await toBlobURL(
-        `${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`,
-        "text/javascript"
-      ),
-      wasmURL: await toBlobURL(
-        `${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`,
-        "application/wasm"
-      ),
-    });
+    console.log("Loading FFmpeg for audio extraction...");
+    console.log("[ffmpeg] Core base URL:", FFMPEG_CORE_BASE_URL);
 
-    console.log("[ffmpeg] Core loaded from", FFMPEG_CORE_BASE_URL);
+    try {
+      await ffmpeg.load({
+        coreURL: await toBlobURL(
+          `${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`,
+          "text/javascript"
+        ),
+        wasmURL: await toBlobURL(
+          `${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`,
+          "application/wasm"
+        ),
+      });
+    } catch (error) {
+      console.error("FFmpeg failed to load:", error);
+      throw new Error(
+        `Could not load the audio engine. ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+
+    console.log("FFmpeg loaded. Writing file to FS...", {
+      coreBaseUrl: FFMPEG_CORE_BASE_URL,
+    });
 
     return ffmpeg;
   });
@@ -70,7 +84,15 @@ export async function extractAudio(
     throw new Error("Add a video file before extracting audio.");
   }
 
-  const ffmpeg = await getFfmpeg();
+  let ffmpeg: FFmpeg;
+
+  try {
+    ffmpeg = await getFfmpeg();
+  } catch (error) {
+    console.error("Audio Extraction Failed:", error);
+    throw error;
+  }
+
   const id = createId();
   const inputName = `input-${id}.${getExtension(file.name)}`;
   const outputName = `audio-${id}.mp3`;
@@ -83,27 +105,48 @@ export async function extractAudio(
 
   ffmpeg.on("progress", handleProgress);
 
+  const logLines: string[] = [];
+  const handleLog = ({ message }: { message: string }) => {
+    logLines.push(message);
+    if (logLines.length > 100) logLines.shift();
+  };
+  ffmpeg.on("log", handleLog);
+
   try {
-    const { fetchFile } = await import("@ffmpeg/util");
+    console.log("Writing file to FS...", {
+      name: inputName,
+      type: file.type,
+      size: file.size,
+    });
+
     await ffmpeg.writeFile(inputName, await fetchFile(file));
 
+    console.log("Running audio extraction command...");
     const exitCode = await ffmpeg.exec([
       "-i",
       inputName,
       "-vn",
+      "-ar",
+      "44100",
       "-ac",
       "1",
-      "-ar",
-      "16000",
       "-b:a",
       "32k",
-      "-codec:a",
-      "libmp3lame",
       outputName,
     ]);
 
     if (exitCode !== 0) {
-      throw new Error("Audio extraction failed. This video may not have an audio track.");
+      console.error(
+        "[extract-audio] FFmpeg exited with code",
+        exitCode,
+        "\nLast log lines:\n" + logLines.slice(-30).join("\n")
+      );
+      throw new Error(
+        `Audio extraction failed (FFmpeg code ${exitCode}). ${
+          logLines.slice(-2).join(" | ") ||
+          "This video may not have an audio track."
+        }`
+      );
     }
 
     const data = await ffmpeg.readFile(outputName);
@@ -122,6 +165,7 @@ export async function extractAudio(
       { type: "audio/mpeg", lastModified: Date.now() }
     );
   } catch (error) {
+    console.error("Audio Extraction Failed:", error);
     if (error instanceof Error) {
       throw error;
     }
@@ -129,6 +173,7 @@ export async function extractAudio(
     throw new Error("Audio extraction failed. Please try another video.");
   } finally {
     ffmpeg.off("progress", handleProgress);
+    ffmpeg.off("log", handleLog);
     await ffmpeg.deleteFile(inputName).catch(() => undefined);
     await ffmpeg.deleteFile(outputName).catch(() => undefined);
   }
