@@ -16,6 +16,9 @@ export type FaceTrack = {
   bestCenterX: number | null;
 };
 
+const BLAZEFACE_MODEL_URL =
+  "https://cdn.jsdelivr.net/npm/local-tfjs-models@0.0.3/blazeface/google/model.json";
+
 let modelPromise: Promise<BlazeFaceModel> | null = null;
 
 async function getFaceModel(): Promise<BlazeFaceModel> {
@@ -34,13 +37,13 @@ async function getFaceModel(): Promise<BlazeFaceModel> {
 
       try {
         return await blazeface.load({
-          modelUrl: "/models/blazeface/model.json",
+          modelUrl: BLAZEFACE_MODEL_URL,
           maxFaces: 2,
           scoreThreshold: 0.5,
         });
       } catch (error) {
         console.warn(
-          "[face-tracker] BlazeFace could not load; skipping face tracking.",
+          "[face-tracker] BlazeFace model failed to load; continuing with the center crop.",
           error
         );
         throw error;

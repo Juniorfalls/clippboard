@@ -656,7 +656,7 @@ export class KutlassProcessor implements IVideoProcessor {
           }
         } catch (error) {
           console.warn(
-            '[KutlassProcessor] Face tracking failed; using the center crop.',
+            '[KutlassProcessor] BlazeFace tracking failed; continuing with the center crop.',
             error
           );
         }
