@@ -24,6 +24,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.9.0",
     "clsx": "^2.1.1",
+    "fabric": "^6.9.1",
     "inngest": "^4.26.2",
     "lucide-react": "^0.454.0",
     "next": "14.2.15",

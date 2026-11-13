@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import {
   AudioLines,
   Captions,
   Image as ImageIcon,
-  Loader2,
   RotateCcw,
   Scissors,
   Trash2,
@@ -18,12 +16,8 @@ import {
 import { CustomSelect } from "@/components/CustomSelect";
 import { CustomTextArea } from "@/components/CustomTextArea";
 import { VideoPreview } from "@/components/VideoPreview";
+import { ThumbnailEditor } from "@/components/ThumbnailEditor";
 import { cn } from "@/lib/utils";
-import {
-  renderThumbnailPreview,
-  type ThumbnailLayout,
-} from "@/services/video/thumbnail-editor";
-import { createClient } from "@/utils/supabase/client";
 import type { Clip, TimeRange, TranscriptSegment, Voiceover } from "@/types/video";
 
 const MIN_DURATION = 1;
@@ -121,23 +115,6 @@ function getClipWords(
   return words;
 }
 
-const THUMBNAIL_LAYOUTS: Array<{ id: ThumbnailLayout; label: string }> = [
-  { id: "split", label: "Split Screen" },
-  { id: "banner", label: "Bottom Banner" },
-  { id: "center", label: "Center Focus" },
-];
-
-const THUMBNAIL_BACKGROUNDS = [
-  { label: "Brand Blue", value: "#3B82F6" },
-  { label: "Soft Black", value: "#1C1C1C" },
-  { label: "White", value: "#FFFFFF" },
-];
-
-const THUMBNAIL_TEXT_COLORS = [
-  { label: "White", value: "#FFFFFF" },
-  { label: "Black", value: "#1C1C1C" },
-];
-
 type TrimModalProps = {
   clip: Clip;
   open: boolean;
@@ -174,18 +151,6 @@ export function TrimModal({
   const [voiceover, setVoiceover] = useState<Voiceover | null>(null);
   const [isGeneratingVoiceover, setIsGeneratingVoiceover] = useState(false);
   const [removeFiller, setRemoveFiller] = useState(false);
-  const [thumbnailText, setThumbnailText] = useState(
-    clip.hookText || clip.title
-  );
-  const [thumbnailLayout, setThumbnailLayout] =
-    useState<ThumbnailLayout>("split");
-  const [thumbnailBackground, setThumbnailBackground] =
-    useState("#3B82F6");
-  const [thumbnailTextColor, setThumbnailTextColor] = useState("#FFFFFF");
-  const [isSavingThumbnail, setIsSavingThumbnail] = useState(false);
-  const [thumbnailMediaVersion, setThumbnailMediaVersion] = useState(0);
-  const thumbnailCanvasRef = useRef<HTMLCanvasElement>(null);
-  const thumbnailMediaRef = useRef<HTMLVideoElement | null>(null);
 
   const bounds = boundsRef.current;
   const range = Math.max(bounds.end - bounds.start, MIN_DURATION);
@@ -204,11 +169,6 @@ export function TrimModal({
     setScript(clip.voiceover?.script ?? "");
     setVoiceover(clip.voiceover ?? null);
     setIsGeneratingVoiceover(false);
-    setThumbnailText(clip.hookText || clip.title);
-    setThumbnailLayout("split");
-    setThumbnailBackground("#3B82F6");
-    setThumbnailTextColor("#FFFFFF");
-    setIsSavingThumbnail(false);
     setRemoveFiller(
       clip.removeFiller ?? Boolean(clip.fillerCuts?.length)
     );
@@ -231,90 +191,6 @@ export function TrimModal({
     clip.voiceover,
     clip.fillerCuts,
     clip.removeFiller,
-  ]);
-
-  useEffect(() => {
-    if (!open || activeTab !== "thumbnail") return;
-
-    const source = clip.storageUrl ?? clip.url;
-    thumbnailMediaRef.current = null;
-    if (!source) {
-      setThumbnailMediaVersion((version) => version + 1);
-      return;
-    }
-
-    let cancelled = false;
-    const video = document.createElement("video");
-    video.crossOrigin = "anonymous";
-    video.preload = "auto";
-    video.muted = true;
-    video.playsInline = true;
-
-    const seekToStart = () => {
-      if (cancelled) return;
-      const duration = Number.isFinite(video.duration) ? video.duration : 0;
-      const target = Math.min(
-        Math.max(clip.startTime, 0),
-        Math.max(duration - 0.1, 0)
-      );
-
-      if (Math.abs(video.currentTime - target) > 0.01) {
-        video.currentTime = target;
-        return;
-      }
-
-      thumbnailMediaRef.current = video;
-      setThumbnailMediaVersion((version) => version + 1);
-    };
-
-    video.onloadeddata = seekToStart;
-    video.onseeked = () => {
-      if (cancelled) return;
-      thumbnailMediaRef.current = video;
-      setThumbnailMediaVersion((version) => version + 1);
-    };
-    video.onerror = () => {
-      if (cancelled) return;
-      console.warn(
-        "[TrimModal] Could not load the clip frame for the thumbnail preview."
-      );
-      thumbnailMediaRef.current = null;
-      setThumbnailMediaVersion((version) => version + 1);
-    };
-
-    video.src = source;
-    video.load();
-
-    return () => {
-      cancelled = true;
-      video.onloadeddata = null;
-      video.onseeked = null;
-      video.onerror = null;
-      video.removeAttribute("src");
-      video.load();
-    };
-  }, [activeTab, clip.startTime, clip.storageUrl, clip.url, open]);
-
-  useEffect(() => {
-    if (activeTab !== "thumbnail") return;
-    const canvas = thumbnailCanvasRef.current;
-    if (!canvas) return;
-
-    renderThumbnailPreview(
-      canvas,
-      thumbnailMediaRef.current,
-      thumbnailText,
-      thumbnailLayout,
-      thumbnailBackground,
-      thumbnailTextColor
-    );
-  }, [
-    activeTab,
-    thumbnailText,
-    thumbnailLayout,
-    thumbnailBackground,
-    thumbnailTextColor,
-    thumbnailMediaVersion,
   ]);
 
   useEffect(() => {
@@ -431,64 +307,6 @@ export function TrimModal({
       });
     } finally {
       setIsGeneratingVoiceover(false);
-    }
-  }
-
-  async function handleSaveThumbnail() {
-    const canvas = thumbnailCanvasRef.current;
-    if (!canvas || isSavingThumbnail) return;
-
-    setIsSavingThumbnail(true);
-
-    try {
-      const blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob(resolve, "image/jpeg", 0.92);
-      });
-      if (!blob || blob.size === 0) {
-        throw new Error("The thumbnail could not be generated.");
-      }
-
-      const file = new File([blob], `thumbnail-${clip.id}.jpg`, {
-        type: "image/jpeg",
-      });
-      const uploaded = await upload(
-        `thumbnails/${userId}/custom-${clip.id}-${Date.now()}.jpg`,
-        file,
-        {
-          access: "public",
-          handleUploadUrl: "/api/upload",
-          contentType: "image/jpeg",
-          clientPayload: JSON.stringify({ userId }),
-        }
-      );
-
-      if (!uploaded.url?.startsWith("https://")) {
-        throw new Error("The thumbnail upload did not return a public URL.");
-      }
-
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("clips")
-        .update({
-          thumbnail_url: uploaded.url,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", clip.id)
-        .eq("user_id", userId);
-
-      if (error) throw error;
-
-      onThumbnailSaved?.(uploaded.url);
-      toast.success("Thumbnail updated!");
-      onOpenChange(false);
-    } catch (error) {
-      console.error("Thumbnail save failed:", error);
-      toast.error("Could not save thumbnail", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
-    } finally {
-      setIsSavingThumbnail(false);
     }
   }
 
@@ -944,160 +762,11 @@ export function TrimModal({
                 </p>
               </div>
             ) : (
-              <div className="flex flex-col gap-4 md:col-span-2">
-                <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_230px] sm:items-start">
-                  <div className="overflow-hidden rounded-2 border-4 border-brand-blue-light bg-warm-white shadow-xl">
-                    <canvas
-                      ref={thumbnailCanvasRef}
-                      width={1280}
-                      height={720}
-                      className="block aspect-video w-full max-w-[600px]"
-                      aria-label="Thumbnail live preview"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label
-                        htmlFor="thumbnail-headline"
-                        className="text-[14px] font-semibold text-soft-black"
-                      >
-                        Headline
-                      </label>
-                      <input
-                        id="thumbnail-headline"
-                        type="text"
-                        value={thumbnailText}
-                        onChange={(event) =>
-                          setThumbnailText(event.target.value.slice(0, 90))
-                        }
-                        maxLength={90}
-                        autoComplete="off"
-                        placeholder="Add a bold headline"
-                        className={cn(
-                          "block w-full rounded-2 border border-border-gray bg-white px-3.5 py-2.5 text-[14px] text-soft-black placeholder:text-soft-black/40 duration-200",
-                          focusRing
-                        )}
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <span className="text-[14px] font-semibold text-soft-black">
-                        Layout
-                      </span>
-                      <div
-                        role="radiogroup"
-                        aria-label="Thumbnail layout"
-                        className="flex flex-col gap-2"
-                      >
-                        {THUMBNAIL_LAYOUTS.map((option) => {
-                          const active = thumbnailLayout === option.id;
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              role="radio"
-                              aria-checked={active}
-                              onClick={() => setThumbnailLayout(option.id)}
-                              className={cn(
-                                "rounded-2 border px-3 py-2 text-left text-[13px] font-semibold duration-200",
-                                active
-                                  ? "border-brand-blue bg-brand-blue-light/60 text-soft-black"
-                                  : "border-border-gray bg-white text-soft-black/70 hover:bg-warm-white hover:text-soft-black",
-                                focusRing
-                              )}
-                            >
-                              {option.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <span className="text-[14px] font-semibold text-soft-black">
-                        Background
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {THUMBNAIL_BACKGROUNDS.map((option) => {
-                          const active = thumbnailBackground === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              aria-pressed={active}
-                              aria-label={`${option.label} background`}
-                              onClick={() =>
-                                setThumbnailBackground(option.value)
-                              }
-                              className={cn(
-                                "flex h-9 w-9 items-center justify-center rounded-full border-2 duration-200",
-                                active
-                                  ? "border-brand-blue ring-2 ring-brand-blue-light"
-                                  : "border-border-gray hover:border-brand-blue",
-                                focusRing
-                              )}
-                              style={{ backgroundColor: option.value }}
-                            >
-                              {active && (
-                                <span
-                                  className={cn(
-                                    "h-2 w-2 rounded-full",
-                                    option.value === "#FFFFFF"
-                                      ? "bg-soft-black"
-                                      : "bg-white"
-                                  )}
-                                  aria-hidden
-                                />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <span className="text-[14px] font-semibold text-soft-black">
-                        Text color
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {THUMBNAIL_TEXT_COLORS.map((option) => {
-                          const active = thumbnailTextColor === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              aria-pressed={active}
-                              onClick={() =>
-                                setThumbnailTextColor(option.value)
-                              }
-                              className={cn(
-                                "flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-semibold duration-200",
-                                active
-                                  ? "border-brand-blue bg-brand-blue-light/60 text-soft-black"
-                                  : "border-border-gray bg-white text-soft-black/70 hover:bg-warm-white",
-                                focusRing
-                              )}
-                            >
-                              <span
-                                className="h-3.5 w-3.5 rounded-full border border-border-gray"
-                                style={{ backgroundColor: option.value }}
-                                aria-hidden
-                              />
-                              {option.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-[12px] leading-relaxed text-soft-black/50">
-                  Exports at 1280×720. The preview updates instantly as you
-                  change the headline, layout, and colors.
-                </p>
-              </div>
+              <ThumbnailEditor
+                clip={clip}
+                userId={userId}
+                onSaved={(url) => onThumbnailSaved?.(url)}
+              />
             )}
           </div>
 
@@ -1113,25 +782,6 @@ export function TrimModal({
                 Cancel
               </button>
             </Dialog.Close>
-            {activeTab === "thumbnail" && (
-              <button
-                type="button"
-                onClick={() => void handleSaveThumbnail()}
-                disabled={isSavingThumbnail}
-                aria-busy={isSavingThumbnail}
-                className={cn(
-                  "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-5 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover disabled:cursor-not-allowed disabled:bg-brand-blue-light disabled:text-soft-black/60",
-                  focusRing
-                )}
-              >
-                {isSavingThumbnail ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <ImageIcon className="h-4 w-4" aria-hidden />
-                )}
-                {isSavingThumbnail ? "Saving thumbnail..." : "Save Thumbnail"}
-              </button>
-            )}
             <button
               type="button"
               onClick={handleSave}
