@@ -1,7 +1,7 @@
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
 
 const FFMPEG_CORE_BASE_URL =
-  "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd";
+  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
 
 let ffmpegPromise: Promise<FFmpeg> | null = null;
 
@@ -20,6 +20,8 @@ function createFfmpeg() {
         "application/wasm"
       ),
     });
+
+    console.log("[ffmpeg] Core loaded from", FFMPEG_CORE_BASE_URL);
 
     return ffmpeg;
   });

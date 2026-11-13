@@ -918,7 +918,7 @@ export function WorkspaceDashboard({
             updateClip(clip.id, { status: "error" });
             failedCount += 1;
             toast.error(
-              "Video rendering failed. Please try a different video source.",
+              "Video processing failed. Please try a different video.",
               {
                 description:
                   renderError instanceof Error

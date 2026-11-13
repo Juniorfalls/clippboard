@@ -355,7 +355,14 @@ export class KutlassProcessor implements IVideoProcessor {
       }
     };
 
+    const logLines: string[] = [];
+    const handleLog = ({ message }: { message: string }) => {
+      logLines.push(message);
+      if (logLines.length > 200) logLines.shift();
+    };
+
     ffmpeg.on('progress', handleProgress);
+    ffmpeg.on('log', handleLog);
 
     try {
       await ffmpeg.writeFile(inputName, await fetchFile(sourceFile));
@@ -379,9 +386,16 @@ export class KutlassProcessor implements IVideoProcessor {
       }
       if (splitFilter) filters.push(splitFilter);
       else if (cropFilter) filters.push(cropFilter);
+
       if (assContent) {
-        await ffmpeg.writeFile(subtitleName, new TextEncoder().encode(assContent));
-        filters.push(`subtitles=${subtitleName}`);
+        await ffmpeg.writeFile(
+          subtitleName,
+          new TextEncoder().encode(assContent)
+        );
+        // Keep the subtitle filter self-contained: ffmpeg.wasm resolves
+        // filter filenames against the virtual FS root, so no paths or
+        // extra escaping are needed.
+        filters.push(`ass=${subtitleName}`);
       }
 
       const audioFilters =
@@ -569,10 +583,19 @@ export class KutlassProcessor implements IVideoProcessor {
         outputName,
       ];
 
+      console.log('[KutlassProcessor] FFmpeg args:', args.join(' '));
+
       const exitCode = await ffmpeg.exec(args);
 
       if (exitCode !== 0) {
-        throw new Error(`FFmpeg exited with code ${exitCode}.`);
+        console.error(
+          '[KutlassProcessor] FFmpeg exited with code',
+          exitCode,
+          '\nLast log lines:\n' + logLines.slice(-40).join('\n')
+        );
+        throw new Error(
+          `FFmpeg exited with code ${exitCode}. ${logLines.slice(-3).join(' | ')}`
+        );
       }
 
       const data = await ffmpeg.readFile(outputName);
@@ -585,6 +608,7 @@ export class KutlassProcessor implements IVideoProcessor {
       return URL.createObjectURL(blob);
     } finally {
       ffmpeg.off('progress', handleProgress);
+      ffmpeg.off('log', handleLog);
       await ffmpeg.deleteFile(inputName).catch(() => undefined);
       await ffmpeg.deleteFile(subtitleName).catch(() => undefined);
       await ffmpeg.deleteFile(voiceoverFileName).catch(() => undefined);
@@ -701,7 +725,7 @@ export class KutlassProcessor implements IVideoProcessor {
       );
       throw error instanceof Error
         ? error
-        : new Error('Video rendering failed. Please try a different video source.');
+        : new Error('Video processing failed. Please try a different video.');
     }
   }
 }
