@@ -2,7 +2,6 @@
 
 import { upload } from "@vercel/blob/client";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRealtime } from "inngest/react";
 import { Captions, Clapperboard, FolderOpen, Loader2, Lock, ScanFace, Scissors } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +11,7 @@ import { CustomTextArea } from "@/components/CustomTextArea";
 import { useTeam } from "@/components/TeamProvider";
 import { ClipSkeleton } from "@/components/ClipSkeleton";
 import { ClipGallery } from "@/components/ClipGallery";
+import { UpgradeModal } from "@/components/UpgradeModal";
 import type { PublishPayload } from "@/components/PublishModal";
 import { getVideoProcessor } from "@/services/video";
 import { generateClipThumbnail } from "@/services/video/thumbnail";
@@ -139,6 +139,7 @@ export function WorkspaceDashboard({
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [prompt, setPrompt] = useState("Find the 10 best moments from this video.");
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [overlayText, setOverlayText] = useState("");
@@ -1413,12 +1414,16 @@ export function WorkspaceDashboard({
               <p className="flex items-center gap-1.5 text-[12px] font-semibold text-soft-black/60">
                 <Lock className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
                 Starter limit reached.{" "}
-                <Link
-                  href="/#pricing"
-                  className={cn("text-brand-blue underline-offset-2 hover:underline", focusRing)}
+                <button
+                  type="button"
+                  onClick={() => setIsUpgradeModalOpen(true)}
+                  className={cn(
+                    "text-brand-blue underline-offset-2 hover:underline",
+                    focusRing
+                  )}
                 >
                   Upgrade to Pro
-                </Link>
+                </button>
               </p>
             )}
             <button
@@ -1503,6 +1508,12 @@ export function WorkspaceDashboard({
           </div>
         )}
       </section>
+
+      <UpgradeModal
+        open={isUpgradeModalOpen}
+        onOpenChange={setIsUpgradeModalOpen}
+        currentPlan={plan}
+      />
     </div>
   );
 }
