@@ -897,18 +897,37 @@ export function WorkspaceDashboard({
         setProgressById((previous) => ({ ...previous, [clip.id]: 0 }));
 
         try {
-          const url = await processor.processClip(
-            sourceFile,
-            clip,
-            options,
-            (progress) => {
-              const rounded = Math.round(progress);
-              setProgressById((previous) => ({
-                ...previous,
-                [clip.id]: rounded,
-              }));
-            }
-          );
+          let url: string;
+
+          try {
+            url = await processor.processClip(
+              sourceFile,
+              clip,
+              options,
+              (progress) => {
+                const rounded = Math.round(progress);
+                setProgressById((previous) => ({
+                  ...previous,
+                  [clip.id]: rounded,
+                }));
+              }
+            );
+          } catch (renderError) {
+            console.error("Video rendering failed for clip:", clip.id);
+            console.error("Render error details:", renderError);
+            updateClip(clip.id, { status: "error" });
+            failedCount += 1;
+            toast.error(
+              "Video rendering failed. Please try a different video source.",
+              {
+                description:
+                  renderError instanceof Error
+                    ? renderError.message
+                    : "Please try again.",
+              }
+            );
+            continue;
+          }
 
           setProgressById((previous) => ({ ...previous, [clip.id]: 100 }));
           const storageUrl = await uploadRenderedVideo(clip, url);

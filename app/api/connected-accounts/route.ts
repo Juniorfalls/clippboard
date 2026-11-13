@@ -13,18 +13,27 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
-    .from("connected_accounts")
-    .select("id, platform, platform_user_id, expires_at, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from("connected_accounts")
+      .select("id, platform, platform_user_id, expires_at, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true });
 
-  if (error) {
-    return NextResponse.json(
-      { error: "Could not load connected accounts." },
-      { status: 500 }
-    );
+    if (error) {
+      if (
+        error.code === "42P01" ||
+        error.message?.includes("does not exist") ||
+        error.message?.includes("Could not find the table")
+      ) {
+        return NextResponse.json({ accounts: [] });
+      }
+      throw new Error(error.message);
+    }
+
+    return NextResponse.json({ accounts: data ?? [] });
+  } catch (error) {
+    console.error("[connected-accounts] Query failed", error);
+    return NextResponse.json({ accounts: [] });
   }
-
-  return NextResponse.json({ accounts: data ?? [] });
 }

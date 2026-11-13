@@ -9,7 +9,7 @@ import {
 } from '@/types/video';
 
 const SAMPLE_VIDEO_URL =
-  'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 
 function createId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -715,9 +715,12 @@ export class KutlassProcessor implements IVideoProcessor {
         );
       } catch (error) {
         console.error(
-          '[KutlassProcessor] Caption or face-crop render failed; falling back to sample render.',
+          '[KutlassProcessor] Caption or face-crop render failed.',
           error
         );
+        throw error instanceof Error
+          ? error
+          : new Error('Video rendering failed. Please try a different video source.');
       }
     }
 
