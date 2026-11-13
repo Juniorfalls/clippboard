@@ -32,7 +32,10 @@ function createFfmpeg() {
         wasmURL,
       });
 
-      await ffmpeg.load({ coreURL, wasmURL });
+      const classWorkerURL = `${window.location.origin}/ffmpeg/worker.js`;
+      console.log("Loading FFmpeg with classWorkerURL:", classWorkerURL);
+
+      await ffmpeg.load({ coreURL, wasmURL, classWorkerURL });
     } catch (error) {
       console.error("FFmpeg failed to load:", error);
       throw new Error(
