@@ -14,16 +14,25 @@ function createFfmpeg() {
     console.log("[ffmpeg] Core base URL:", FFMPEG_CORE_BASE_URL);
 
     try {
-      await ffmpeg.load({
-        coreURL: await toBlobURL(
+      const startedAt = performance.now();
+      const [coreURL, wasmURL] = await Promise.all([
+        toBlobURL(
           `${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`,
           "text/javascript"
         ),
-        wasmURL: await toBlobURL(
+        toBlobURL(
           `${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`,
           "application/wasm"
         ),
+      ]);
+
+      console.log("[ffmpeg] Core assets downloaded", {
+        seconds: Math.round((performance.now() - startedAt) / 100) / 10,
+        coreURL,
+        wasmURL,
       });
+
+      await ffmpeg.load({ coreURL, wasmURL });
     } catch (error) {
       console.error("FFmpeg failed to load:", error);
       throw new Error(
