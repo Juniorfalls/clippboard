@@ -398,6 +398,9 @@ export class KutlassProcessor implements IVideoProcessor {
         filters.push(`ass=${subtitleName}`);
       }
 
+      // libx264 rejects odd dimensions, so force even width and height last.
+      filters.push('scale=trunc(iw/2)*2:trunc(ih/2)*2');
+
       const audioFilters =
         cuts.length > 0
           ? [`aselect='not(${cutCondition})'`, 'asetpts=N/SR/TB']
