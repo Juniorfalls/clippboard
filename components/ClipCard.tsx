@@ -264,6 +264,9 @@ export function ClipCard({
 }) {
   const [isTrimOpen, setIsTrimOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
+  const [thumbnailOverride, setThumbnailOverride] = useState<string | null>(
+    null
+  );
   const [reasonPinned, setReasonPinned] = useState(false);
   const [reasonHovered, setReasonHovered] = useState(false);
   const showReason = reasonPinned || reasonHovered;
@@ -283,17 +286,18 @@ export function ClipCard({
   );
   const isProcessing = clip.status === "processing";
   const clipHref = clip.storageUrl ?? clip.url;
+  const thumbnailUrl = thumbnailOverride ?? clip.thumbnailUrl;
 
   return (
     <article className="flex w-full flex-col overflow-hidden rounded-3 border border-gray-200 bg-white">
       <div
         className={cn(
           "relative",
-          isReady && clip.thumbnailUrl ? "aspect-video" : "aspect-[9/16]"
+          isReady && thumbnailUrl ? "aspect-video" : "aspect-[9/16]"
         )}
       >
         {isReady ? (
-          clip.thumbnailUrl ? (
+          thumbnailUrl ? (
             <a
               href={clipHref}
               target="_blank"
@@ -305,7 +309,7 @@ export function ClipCard({
               )}
             >
               <img
-                src={clip.thumbnailUrl}
+                src={thumbnailUrl}
                 alt={`AI thumbnail for ${clip.title}`}
                 className="h-full w-full object-cover"
                 loading="lazy"
@@ -620,6 +624,8 @@ export function ClipCard({
           onOpenChange={setIsTrimOpen}
           onSave={onTrim}
           transcript={trimTranscript ?? transcript}
+          userId={userId}
+          onThumbnailSaved={setThumbnailOverride}
         />
       )}
 
