@@ -11,7 +11,6 @@ import {
   MoreHorizontal,
   Pencil,
   Play,
-  Scissors,
   Send,
   Trash2,
   Sparkles,
@@ -572,14 +571,14 @@ export function ClipCard({
                 <button
                   type="button"
                   onClick={() => setIsTrimOpen(true)}
-                  aria-label={`Trim ${clip.title}`}
+                  aria-label={`Edit ${clip.title}`}
                   className={cn(
                     "inline-flex w-full items-center justify-center gap-2 rounded-2 border border-border-gray bg-white px-3 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
                     focusRing
                   )}
                 >
-                  <Scissors className="h-4 w-4" aria-hidden />
-                  Trim
+                  <Pencil className="h-4 w-4" aria-hidden />
+                  Edit
                 </button>
               )}
             </div>

@@ -949,7 +949,9 @@ export function TrimModal({
                   <div className="overflow-hidden rounded-2 border-4 border-brand-blue-light bg-warm-white shadow-xl">
                     <canvas
                       ref={thumbnailCanvasRef}
-                      className="block aspect-video w-full"
+                      width={1280}
+                      height={720}
+                      className="block aspect-video w-full max-w-[600px]"
                       aria-label="Thumbnail live preview"
                     />
                   </div>

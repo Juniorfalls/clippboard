@@ -129,6 +129,9 @@ export function renderThumbnailPreview(
   const context = canvas.getContext("2d");
   if (!context) return;
 
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+
   context.clearRect(0, 0, WIDTH, HEIGHT);
   context.fillStyle = bgColor;
   context.fillRect(0, 0, WIDTH, HEIGHT);
