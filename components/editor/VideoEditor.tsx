@@ -59,6 +59,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
+import { EditorThumbnailPanel } from "@/components/editor/EditorThumbnailPanel";
 import { getFfmpeg } from "@/lib/extract-audio";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
@@ -238,6 +239,46 @@ function formatDuration(seconds: number) {
 function extensionFor(file: File) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   return extension && /^[a-z0-9]+$/.test(extension) ? extension : "mp4";
+}
+
+async function captureThumbnailFromClip(clip: MediaClip): Promise<Blob | null> {
+  if (clip.kind === "image") return clip.file;
+
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+
+    const draw = () => {
+      if (!video.videoWidth || !video.videoHeight) {
+        resolve(null);
+        return;
+      }
+      const frame = document.createElement("canvas");
+      frame.width = video.videoWidth;
+      frame.height = video.videoHeight;
+      const context = frame.getContext("2d");
+      if (!context) {
+        resolve(null);
+        return;
+      }
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(video, 0, 0, frame.width, frame.height);
+      frame.toBlob((blob) => resolve(blob), "image/png");
+    };
+
+    video.onloadeddata = () => {
+      if (video.duration > 0.2) video.currentTime = 0.1;
+      else draw();
+    };
+    video.onseeked = draw;
+    video.onerror = () => resolve(null);
+    video.src = clip.url;
+    video.load();
+  });
 }
 
 function hexToRgb(hex: string) {
@@ -480,6 +521,7 @@ export function VideoEditor({ userId }: { userId: string }) {
   const [activeFilter, setActiveFilter] = useState("original");
   const [resolution, setResolution] = useState<"1080p" | "4K">("1080p");
   const [overlayLayers, setOverlayLayers] = useState<EditorLayer[]>([]);
+  const [customThumbnail, setCustomThumbnail] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const autoplayNextRef = useRef(false);
@@ -491,6 +533,14 @@ export function VideoEditor({ userId }: { userId: string }) {
   );
 
   const markDirty = useCallback(() => setHasUnsavedChanges(true), []);
+
+  const handleThumbnailChange = useCallback(
+    (dataUrl: string | null) => {
+      setCustomThumbnail(dataUrl);
+      if (dataUrl) markDirty();
+    },
+    [markDirty]
+  );
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -1325,6 +1375,36 @@ export function VideoEditor({ userId }: { userId: string }) {
         throw new Error("The export upload did not return a public URL.");
       }
 
+      let thumbnailUrl: string | null = null;
+      try {
+        const thumbnailBlob = customThumbnail
+          ? await (await fetch(customThumbnail)).blob()
+          : await captureThumbnailFromClip(clips[0]);
+
+        if (thumbnailBlob) {
+          const thumbnailFile = new File(
+            [thumbnailBlob],
+            `${projectSlug}-thumbnail-${runId}.png`,
+            { type: "image/png" }
+          );
+          const uploadedThumbnail = await upload(
+            `thumbnails/${userId}/editor-${projectSlug}-${runId}.png`,
+            thumbnailFile,
+            {
+              access: "public",
+              handleUploadUrl: "/api/upload",
+              contentType: "image/png",
+              clientPayload: JSON.stringify({ userId }),
+            }
+          );
+          if (uploadedThumbnail.url?.startsWith("https://")) {
+            thumbnailUrl = uploadedThumbnail.url;
+          }
+        }
+      } catch (error) {
+        console.warn("[editor] Thumbnail upload failed", error);
+      }
+
       const duration = clips.reduce(
         (sum, clip) => sum + (clip.duration || IMAGE_CLIP_SECONDS),
         0
@@ -1332,8 +1412,10 @@ export function VideoEditor({ userId }: { userId: string }) {
       const title = projectName.trim() || "Untitled project";
 
       const supabase = createClient();
+      const jobId = createId();
       const metadata = {
         id: createId(),
+        jobId,
         title,
         duration,
         engagementScore: 0,
@@ -1344,11 +1426,30 @@ export function VideoEditor({ userId }: { userId: string }) {
         status: "completed",
         url: uploaded.url,
         storageUrl: uploaded.url,
+        thumbnailUrl: thumbnailUrl ?? undefined,
         createdIn: "standalone-editor",
       };
 
+      const { error: jobError } = await supabase.from("video_jobs").insert({
+        id: jobId,
+        user_id: userId,
+        status: "completed",
+        source_name: title,
+        options: {
+          createdIn: "standalone-editor",
+          resolution,
+          colorGrade,
+          clipCount: clips.length,
+        },
+        transcript: [],
+        updated_at: new Date().toISOString(),
+      });
+
+      if (jobError) throw jobError;
+
       const { error: insertError } = await supabase.from("clips").insert({
         user_id: userId,
+        job_id: jobId,
         title,
         duration,
         engagement_score: 0,
@@ -1357,19 +1458,24 @@ export function VideoEditor({ userId }: { userId: string }) {
         hook_text: "",
         virality_reason: "Created in the standalone video editor",
         video_url: uploaded.url,
+        thumbnail_url: thumbnailUrl,
         status: "completed",
         metadata,
         updated_at: new Date().toISOString(),
       });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        await supabase.from("video_jobs").delete().eq("id", jobId);
+        throw insertError;
+      }
 
       setExportedUrl(uploaded.url);
       setExportProgress(100);
       setHasUnsavedChanges(false);
-      toast.success("Video exported!", {
-        description: "Saved to your Workspace clips.",
+      toast.success("Project exported successfully!", {
+        description: "Opening your new project folder.",
       });
+      router.push("/dashboard/projects");
     } catch (error) {
       console.error("[editor] Export failed", error);
       toast.error("Export failed", {
@@ -1656,19 +1762,20 @@ export function VideoEditor({ userId }: { userId: string }) {
           <Tabs.Root defaultValue="text" className="flex flex-col gap-3">
             <Tabs.List
               aria-label="Overlay properties"
-              className="grid grid-cols-4 gap-1 rounded-lg border border-border-gray bg-white p-1"
+              className="grid grid-cols-5 gap-1 rounded-lg border border-border-gray bg-white p-1"
             >
               {[
                 { value: "text", label: "Text", icon: Type },
                 { value: "logo", label: "Logo", icon: ImagePlus },
                 { value: "colors", label: "Color", icon: Palette },
                 { value: "layers", label: "Layers", icon: Layers },
+                { value: "thumbnail", label: "Thumbnail", icon: ImageIcon },
               ].map(({ value, label, icon: Icon }) => (
                 <Tabs.Trigger
                   key={value}
                   value={value}
                   className={cn(
-                    "inline-flex items-center justify-center gap-1.5 rounded-md px-1.5 py-2 text-[12px] font-semibold text-soft-black/60 duration-200 hover:bg-warm-white data-[state=active]:bg-brand-blue-light data-[state=active]:text-soft-black",
+                    "inline-flex flex-col items-center justify-center gap-0.5 rounded-md px-1 py-1.5 text-[10px] font-semibold text-soft-black/60 duration-200 hover:bg-warm-white data-[state=active]:bg-brand-blue-light data-[state=active]:text-soft-black",
                     focusRing
                   )}
                 >
@@ -2136,6 +2243,29 @@ export function VideoEditor({ userId }: { userId: string }) {
                   render with FFmpeg.
                 </p>
               </div>
+            </Tabs.Content>
+
+            <Tabs.Content value="thumbnail" className="flex flex-col gap-3">
+              <div className="rounded-2 border border-border-gray bg-white p-3">
+                <p className="text-[13px] font-semibold text-soft-black">
+                  Project thumbnail
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-soft-black/55">
+                  Built from the first timeline clip. Exports with the project.
+                </p>
+              </div>
+              <EditorThumbnailPanel
+                firstClip={
+                  clips[0]
+                    ? {
+                        url: clips[0].url,
+                        kind: clips[0].kind,
+                        name: clips[0].name,
+                      }
+                    : null
+                }
+                onChange={handleThumbnailChange}
+              />
             </Tabs.Content>
 
             <Tabs.Content value="layers" className="flex flex-col gap-2">
