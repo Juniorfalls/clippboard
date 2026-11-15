@@ -460,7 +460,7 @@ export function TrimModal({
             </button>
           </div>
 
-          <div className="mt-5 grid gap-5 md:grid-cols-[200px_1fr] md:items-start">
+          <div className="mt-5 grid min-w-0 gap-5 overflow-hidden md:grid-cols-[200px_1fr] md:items-start">
             {activeTab !== "thumbnail" && (
               <div className="mx-auto w-full max-w-[200px] overflow-hidden rounded-2 border-4 border-brand-blue-light shadow-xl">
                 <div className="aspect-[9/16]">

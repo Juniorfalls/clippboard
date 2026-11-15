@@ -224,6 +224,8 @@ export function ThumbnailEditor({
         frame.height = video.videoHeight;
         const context = frame.getContext("2d");
         if (!context) return;
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
         context.drawImage(video, 0, 0, frame.width, frame.height);
         const videoFrameUrl = frame.toDataURL("image/png");
 
@@ -461,10 +463,10 @@ export function ThumbnailEditor({
   }
 
   return (
-    <div className="flex flex-col gap-4 md:col-span-2">
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_250px] sm:items-start">
-        <div className="overflow-hidden rounded-2 border-4 border-brand-blue-light bg-warm-white shadow-xl">
-          <div className="aspect-video w-full max-w-[600px]">
+    <div className="flex min-w-0 flex-col gap-4 overflow-hidden md:col-span-2">
+      <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] md:items-start">
+        <div className="min-w-0 overflow-hidden rounded-2 border-4 border-brand-blue-light bg-warm-white shadow-xl">
+          <div className="thumbnail-canvas aspect-video w-full max-w-[600px] overflow-hidden">
             <canvas
               ref={canvasElementRef}
               width={CANVAS_WIDTH}
@@ -480,7 +482,7 @@ export function ThumbnailEditor({
           )}
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex min-w-0 max-h-[70vh] flex-col gap-3 overflow-y-auto pr-1">
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
