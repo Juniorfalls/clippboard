@@ -310,7 +310,18 @@ export function TrimModal({
     }
   }
 
-  function handleSave() {
+  function saveTimeline() {
+    onSave({
+      ...clip,
+      startTime: Math.round(start * 10) / 10,
+      endTime: Math.round(end * 10) / 10,
+      duration: Math.round((end - start) * 10) / 10,
+      removeFiller,
+    });
+    onOpenChange(false);
+  }
+
+  function applyTranscriptCuts() {
     const removedWords = clipWords.filter((word) =>
       removedWordKeys.has(word.key)
     );
@@ -320,12 +331,17 @@ export function TrimModal({
 
     onSave({
       ...clip,
-      startTime: Math.round(start * 10) / 10,
-      endTime: Math.round(end * 10) / 10,
-      duration: Math.round((end - start) * 10) / 10,
       cutRanges,
-      removeFiller,
-      voiceover: voiceover ?? undefined,
+    });
+    onOpenChange(false);
+  }
+
+  function saveVoiceover() {
+    if (!voiceover) return;
+
+    onSave({
+      ...clip,
+      voiceover,
     });
     onOpenChange(false);
   }
@@ -609,6 +625,20 @@ export function TrimModal({
                   <span>Clip length {Math.max(end - start, 0).toFixed(1)}s</span>
                   <span>Drag handles or use arrow keys</span>
                 </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={saveTimeline}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-5 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+                      focusRing
+                    )}
+                  >
+                    <Scissors className="h-4 w-4" aria-hidden />
+                    Save Timeline
+                  </button>
+                </div>
               </div>
             ) : activeTab === "transcript" ? (
               <div className="flex flex-col gap-3">
@@ -696,6 +726,20 @@ export function TrimModal({
                   Deleted words become jump cuts. Tap a struck-through word to
                   restore it.
                 </p>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={applyTranscriptCuts}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-5 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+                      focusRing
+                    )}
+                  >
+                    <Captions className="h-4 w-4" aria-hidden />
+                    Apply Transcript Cuts
+                  </button>
+                </div>
               </div>
             ) : activeTab === "voiceover" ? (
               <div className="flex flex-col gap-3">
@@ -755,10 +799,23 @@ export function TrimModal({
                     <AudioLines className="h-4 w-4" aria-hidden />
                     {isGeneratingVoiceover ? "Generating..." : "Generate voiceover"}
                   </button>
+                  {voiceover && (
+                    <button
+                      type="button"
+                      onClick={saveVoiceover}
+                      className={cn(
+                        "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-5 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
+                        focusRing
+                      )}
+                    >
+                      <AudioLines className="h-4 w-4" aria-hidden />
+                      Save Voiceover
+                    </button>
+                  )}
                 </div>
                 <p className="text-[12px] font-normal text-soft-black/50">
-                  Generate the voiceover, then save the clip to re-render with
-                  mixed audio.
+                  Generate the voiceover, then save it to re-render with mixed
+                  audio.
                 </p>
               </div>
             ) : (
@@ -779,20 +836,9 @@ export function TrimModal({
                   focusRing
                 )}
               >
-                Cancel
+                Close
               </button>
             </Dialog.Close>
-            <button
-              type="button"
-              onClick={handleSave}
-              className={cn(
-                "inline-flex items-center justify-center gap-2 rounded-2 bg-brand-blue px-5 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-hover",
-                focusRing
-              )}
-            >
-              <Scissors className="h-4 w-4" aria-hidden />
-              Save Trim
-            </button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>
