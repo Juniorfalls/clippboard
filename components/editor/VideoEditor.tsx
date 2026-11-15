@@ -11,6 +11,23 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  horizontalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
 import * as fabric from "fabric";
@@ -22,10 +39,9 @@ import {
   ArrowLeft,
   ArrowUp,
   Bold,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Film,
+  GripVertical,
   ImageIcon,
   ImagePlus,
   Italic,
@@ -349,6 +365,98 @@ function ColorPicker({
   );
 }
 
+function SortableTimelineClip({
+  clip,
+  index,
+  active,
+  onSelect,
+  onRemove,
+}: {
+  clip: MediaClip;
+  index: number;
+  active: boolean;
+  onSelect: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: clip.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.55 : 1,
+        zIndex: isDragging ? 20 : undefined,
+      }}
+      className={cn(
+        "flex w-[170px] shrink-0 flex-col overflow-hidden rounded-lg border-2 bg-white",
+        active ? "border-brand-blue shadow-sm" : "border-border-gray",
+        isDragging && "shadow-xl"
+      )}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        onClick={() => onSelect(clip.id)}
+        aria-pressed={active}
+        aria-label={`Preview or drag ${clip.name}`}
+        className={cn(
+          "relative block h-[54px] w-full cursor-grab overflow-hidden bg-soft-black active:cursor-grabbing",
+          focusRing
+        )}
+      >
+        {clip.kind === "video" ? (
+          <video
+            src={clip.url}
+            muted
+            preload="metadata"
+            className="h-full w-full object-cover opacity-90"
+          />
+        ) : (
+          <img
+            src={clip.url}
+            alt=""
+            className="h-full w-full object-cover opacity-90"
+          />
+        )}
+        <span className="absolute left-1 top-1 inline-flex items-center gap-1 rounded bg-soft-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-warm-white">
+          {clip.kind === "video" ? (
+            <Film className="h-2.5 w-2.5" aria-hidden />
+          ) : (
+            <ImageIcon className="h-2.5 w-2.5" aria-hidden />
+          )}
+          {index + 1}
+        </span>
+        <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded bg-soft-black/75 text-warm-white">
+          <GripVertical className="h-3 w-3" aria-hidden />
+        </span>
+        <span className="absolute bottom-1 right-1 rounded bg-soft-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-warm-white">
+          {formatDuration(clip.duration || IMAGE_CLIP_SECONDS)}
+        </span>
+      </button>
+      <div className="flex items-center gap-1 px-1.5 py-1">
+        <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-soft-black/70">
+          {clip.name}
+        </span>
+        <button
+          type="button"
+          onClick={() => onRemove(clip.id)}
+          aria-label={`Remove ${clip.name}`}
+          className={cn(
+            "flex h-6 w-6 items-center justify-center rounded text-red-600 duration-200 hover:bg-red-50",
+            focusRing
+          )}
+        >
+          <Trash2 className="h-3 w-3" aria-hidden />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function VideoEditor({ userId }: { userId: string }) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -374,6 +482,13 @@ export function VideoEditor({ userId }: { userId: string }) {
   const [overlayLayers, setOverlayLayers] = useState<EditorLayer[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const autoplayNextRef = useRef(false);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const markDirty = useCallback(() => setHasUnsavedChanges(true), []);
 
@@ -611,16 +726,17 @@ export function VideoEditor({ userId }: { userId: string }) {
     });
   }
 
-  function moveClip(id: string, direction: -1 | 1) {
-    markDirty();
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
     setClips((current) => {
-      const index = current.findIndex((clip) => clip.id === id);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= current.length) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
+      const oldIndex = current.findIndex((clip) => clip.id === active.id);
+      const newIndex = current.findIndex((clip) => clip.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return current;
+      return arrayMove(current, oldIndex, newIndex);
     });
+    markDirty();
   }
 
   function selectClip(id: string) {
@@ -652,12 +768,11 @@ export function VideoEditor({ userId }: { userId: string }) {
   }
 
   const playNextClip = useCallback(() => {
-    setClips((current) => current);
     const index = clips.findIndex((clip) => clip.id === activeClip?.id);
     const next = clips[index + 1];
     if (next) {
+      autoplayNextRef.current = true;
       setActiveClipId(next.id);
-      setIsPlaying(false);
     } else {
       setIsPlaying(false);
     }
@@ -668,8 +783,19 @@ export function VideoEditor({ userId }: { userId: string }) {
     const video = videoRef.current;
     if (!video) return;
     video.load();
+
+    if (autoplayNextRef.current && activeClip.kind === "video") {
+      autoplayNextRef.current = false;
+      void video
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setIsPlaying(false));
+      return;
+    }
+
+    autoplayNextRef.current = false;
     setIsPlaying(false);
-  }, [activeClip?.id]);
+  }, [activeClip?.id, activeClip?.kind]);
 
   useEffect(() => {
     if (activeClip?.kind !== "image") return;
@@ -1045,25 +1171,16 @@ export function VideoEditor({ userId }: { userId: string }) {
 
       let code = await ffmpeg.exec([
         ...concatArgs,
-        "-c",
-        "copy",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
         stitchedName,
       ]);
-
-      if (code !== 0) {
-        code = await ffmpeg.exec([
-          ...concatArgs,
-          "-c:v",
-          "libx264",
-          "-preset",
-          "ultrafast",
-          "-pix_fmt",
-          "yuv420p",
-          "-c:a",
-          "aac",
-          stitchedName,
-        ]);
-      }
 
       if (code !== 0) {
         code = await ffmpeg.exec([
@@ -1450,7 +1567,7 @@ export function VideoEditor({ userId }: { userId: string }) {
                   Timeline
                 </h2>
                 <p className="text-[12px] text-soft-black/50">
-                  Clips play left to right. Images hold for {IMAGE_CLIP_SECONDS}s.
+                  Clips play left to right. Drag thumbnails to reorder. Images hold for {IMAGE_CLIP_SECONDS}s.
                 </p>
               </div>
               <button
@@ -1474,128 +1591,61 @@ export function VideoEditor({ userId }: { userId: string }) {
               />
             </div>
 
-            <div
-              onDragOver={(event) => {
-                event.preventDefault();
-                setIsDraggingMedia(true);
-              }}
-              onDragLeave={() => setIsDraggingMedia(false)}
-              onDrop={handleDrop}
-              className={cn(
-                "no-scrollbar flex min-h-[92px] items-stretch gap-2 overflow-x-auto rounded-2 border-2 border-dashed p-2 duration-200",
-                isDraggingMedia
-                  ? "border-brand-blue bg-brand-blue/10"
-                  : "border-border-gray bg-warm-white"
-              )}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              {clips.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => mediaInputRef.current?.click()}
+              <SortableContext
+                items={clips.map((clip) => clip.id)}
+                strategy={horizontalListSortingStrategy}
+              >
+                <div
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setIsDraggingMedia(true);
+                  }}
+                  onDragLeave={() => setIsDraggingMedia(false)}
+                  onDrop={handleDrop}
                   className={cn(
-                    "flex min-h-[72px] w-full flex-col items-center justify-center gap-1 rounded-lg px-4 py-3 text-center",
-                    focusRing
+                    "no-scrollbar flex min-h-[92px] items-stretch gap-2 overflow-x-auto rounded-2 border-2 border-dashed p-2 duration-200",
+                    isDraggingMedia
+                      ? "border-brand-blue bg-brand-blue/10"
+                      : "border-border-gray bg-warm-white"
                   )}
                 >
-                  <UploadCloud className="h-5 w-5 text-brand-blue" aria-hidden />
-                  <span className="text-[13px] font-semibold">
-                    Drag &amp; drop videos or images, or click to browse
-                  </span>
-                  <span className="text-[11px] text-soft-black/50">
-                    MP4, MOV, WebM, PNG, JPG or WebP
-                  </span>
-                </button>
-              ) : (
-                clips.map((clip, index) => {
-                  const active = clip.id === activeClip?.id;
-                  return (
-                    <div
-                      key={clip.id}
+                  {clips.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => mediaInputRef.current?.click()}
                       className={cn(
-                        "flex w-[170px] shrink-0 flex-col overflow-hidden rounded-lg border-2 bg-white",
-                        active
-                          ? "border-brand-blue shadow-sm"
-                          : "border-border-gray"
+                        "flex min-h-[72px] w-full flex-col items-center justify-center gap-1 rounded-lg px-4 py-3 text-center",
+                        focusRing
                       )}
                     >
-                      <button
-                        type="button"
-                        onClick={() => selectClip(clip.id)}
-                        aria-pressed={active}
-                        aria-label={`Preview ${clip.name}`}
-                        className={cn("relative block h-[54px] w-full overflow-hidden bg-soft-black", focusRing)}
-                      >
-                        {clip.kind === "video" ? (
-                          <video
-                            src={clip.url}
-                            muted
-                            preload="metadata"
-                            className="h-full w-full object-cover opacity-90"
-                          />
-                        ) : (
-                          <img
-                            src={clip.url}
-                            alt=""
-                            className="h-full w-full object-cover opacity-90"
-                          />
-                        )}
-                        <span className="absolute left-1 top-1 inline-flex items-center gap-1 rounded bg-soft-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-warm-white">
-                          {clip.kind === "video" ? (
-                            <Film className="h-2.5 w-2.5" aria-hidden />
-                          ) : (
-                            <ImageIcon className="h-2.5 w-2.5" aria-hidden />
-                          )}
-                          {index + 1}
-                        </span>
-                        <span className="absolute bottom-1 right-1 rounded bg-soft-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-warm-white">
-                          {formatDuration(clip.duration || IMAGE_CLIP_SECONDS)}
-                        </span>
-                      </button>
-                      <div className="flex items-center gap-1 px-1.5 py-1">
-                        <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-soft-black/70">
-                          {clip.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => moveClip(clip.id, -1)}
-                          disabled={index === 0}
-                          aria-label={`Move ${clip.name} left`}
-                          className={cn(
-                            "flex h-6 w-6 items-center justify-center rounded text-soft-black/60 duration-200 hover:bg-warm-white disabled:opacity-30",
-                            focusRing
-                          )}
-                        >
-                          <ChevronLeft className="h-3 w-3" aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveClip(clip.id, 1)}
-                          disabled={index === clips.length - 1}
-                          aria-label={`Move ${clip.name} right`}
-                          className={cn(
-                            "flex h-6 w-6 items-center justify-center rounded text-soft-black/60 duration-200 hover:bg-warm-white disabled:opacity-30",
-                            focusRing
-                          )}
-                        >
-                          <ChevronRight className="h-3 w-3" aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeClip(clip.id)}
-                          aria-label={`Remove ${clip.name}`}
-                          className={cn(
-                            "flex h-6 w-6 items-center justify-center rounded text-red-600 duration-200 hover:bg-red-50",
-                            focusRing
-                          )}
-                        >
-                          <Trash2 className="h-3 w-3" aria-hidden />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+                      <UploadCloud className="h-5 w-5 text-brand-blue" aria-hidden />
+                      <span className="text-[13px] font-semibold">
+                        Drag &amp; drop videos or images, or click to browse
+                      </span>
+                      <span className="text-[11px] text-soft-black/50">
+                        MP4, MOV, WebM, PNG, JPG or WebP
+                      </span>
+                    </button>
+                  ) : (
+                    clips.map((clip, index) => (
+                      <SortableTimelineClip
+                        key={clip.id}
+                        clip={clip}
+                        index={index}
+                        active={clip.id === activeClip?.id}
+                        onSelect={selectClip}
+                        onRemove={removeClip}
+                      />
+                    ))
+                  )}
+                </div>
+              </SortableContext>
+            </DndContext>
           </section>
         </div>
 
