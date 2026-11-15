@@ -47,7 +47,6 @@ import {
   Italic,
   Layers,
   Loader2,
-  Minus,
   Palette,
   Pause,
   Play,
@@ -62,6 +61,8 @@ import {
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
 import { EditorThumbnailPanel } from "@/components/editor/EditorThumbnailPanel";
+import { VisualTrimmer } from "@/components/editor/VisualTrimmer";
+import { extractFrames } from "@/services/video/filmstrip";
 import { getFfmpeg } from "@/lib/extract-audio";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
@@ -531,6 +532,9 @@ export function VideoEditor({ userId }: { userId: string }) {
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("text");
+  const [trimFrames, setTrimFrames] = useState<string[]>([]);
+  const [loadingTrimFrames, setLoadingTrimFrames] = useState(false);
+  const [trimDirty, setTrimDirty] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDraggingMedia, setIsDraggingMedia] = useState(false);
   const [selection, setSelection] = useState<OverlaySelection>(null);
@@ -620,6 +624,29 @@ export function VideoEditor({ userId }: { userId: string }) {
     () => clips.find((clip) => clip.id === selectedClipId) ?? null,
     [clips, selectedClipId]
   );
+
+  useEffect(() => {
+    if (!selectedClip || selectedClip.kind !== "video") {
+      setTrimFrames([]);
+      setLoadingTrimFrames(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingTrimFrames(true);
+    setTrimFrames([]);
+    setTrimDirty(false);
+
+    void extractFrames(selectedClip.url, 12).then((frames) => {
+      if (cancelled) return;
+      setTrimFrames(frames);
+      setLoadingTrimFrames(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedClip?.id, selectedClip?.kind, selectedClip?.url]);
 
   const layers = useMemo<EditorLayer[]>(() => {
     const videoLayer: EditorLayer = {
@@ -2385,144 +2412,33 @@ export function VideoEditor({ userId }: { userId: string }) {
             </Tabs.Content>
 
             <Tabs.Content value="trim" className="flex flex-col gap-3">
-              <div className="rounded-2 border border-border-gray bg-white p-3">
-                <p className="text-[13px] font-semibold text-soft-black">
-                  Clip trimming
-                </p>
-                <p className="mt-1 text-[11px] leading-relaxed text-soft-black/55">
-                  Select a clip on the timeline, then set where it starts and
-                  ends. The export respects these times.
-                </p>
-              </div>
-
-              {!selectedClip ? (
-                <div className="rounded-2 border border-dashed border-border-gray bg-white p-4 text-center">
-                  <Scissors className="mx-auto h-5 w-5 text-brand-blue" aria-hidden />
-                  <p className="mt-2 text-[12px] font-semibold text-soft-black">
-                    Select a clip on the timeline to trim.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3 rounded-2 border border-border-gray bg-white p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="min-w-0 truncate text-[13px] font-semibold text-soft-black">
-                      {selectedClip.name}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateClipTrim(selectedClip.id, {
-                          startTime: 0,
-                          endTime: selectedClip.duration || IMAGE_CLIP_SECONDS,
-                        })
-                      }
-                      className={cn(
-                        "inline-flex shrink-0 items-center gap-1 rounded-lg border border-border-gray bg-white px-2 py-1 text-[11px] font-semibold text-soft-black/70 duration-200 hover:bg-warm-white",
-                        focusRing
-                      )}
-                    >
-                      <RotateCcw className="h-3 w-3" aria-hidden />
-                      Reset
-                    </button>
-                  </div>
-
-                  {selectedClip.kind === "image" ? (
-                    <p className="text-[12px] text-soft-black/50">
-                      Images hold for {IMAGE_CLIP_SECONDS}s. Trimming applies to
-                      video clips.
-                    </p>
-                  ) : (
-                    <>
-                      {(
-                        [
-                          { key: "startTime", label: "Start" },
-                          { key: "endTime", label: "End" },
-                        ] as const
-                      ).map(({ key, label }) => {
-                        const value =
-                          key === "startTime"
-                            ? clipStart(selectedClip)
-                            : clipEnd(selectedClip);
-                        return (
-                          <div key={key} className="flex flex-col gap-1.5">
-                            <span className="text-[12px] font-semibold text-soft-black">
-                              {label} time
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                aria-label={`Decrease ${label.toLowerCase()} time`}
-                                onClick={() =>
-                                  updateClipTrim(selectedClip.id, {
-                                    [key]: Math.max(0, value - 0.5),
-                                  })
-                                }
-                                className={cn(
-                                  "flex h-8 w-8 items-center justify-center rounded-lg border border-border-gray bg-white text-soft-black duration-200 hover:bg-warm-white",
-                                  focusRing
-                                )}
-                              >
-                                <Minus className="h-3.5 w-3.5" aria-hidden />
-                              </button>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={value.toFixed(1)}
-                                onChange={(event) => {
-                                  const parsed = Number(
-                                    event.target.value.replace(/[^0-9.]/g, "")
-                                  );
-                                  if (!Number.isFinite(parsed)) return;
-                                  updateClipTrim(selectedClip.id, {
-                                    [key]: parsed,
-                                  });
-                                }}
-                                aria-label={`${label} time in seconds`}
-                                className={cn(inputClass, "w-20 text-center")}
-                              />
-                              <span className="text-[11px] font-semibold text-soft-black/50">
-                                sec
-                              </span>
-                              <button
-                                type="button"
-                                aria-label={`Increase ${label.toLowerCase()} time`}
-                                onClick={() =>
-                                  updateClipTrim(selectedClip.id, {
-                                    [key]: Math.min(
-                                      selectedClip.duration || IMAGE_CLIP_SECONDS,
-                                      value + 0.5
-                                    ),
-                                  })
-                                }
-                                className={cn(
-                                  "flex h-8 w-8 items-center justify-center rounded-lg border border-border-gray bg-white text-soft-black duration-200 hover:bg-warm-white",
-                                  focusRing
-                                )}
-                              >
-                                <Plus className="h-3.5 w-3.5" aria-hidden />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      <div className="flex items-center justify-between rounded-lg bg-warm-white px-3 py-2">
-                        <span className="text-[12px] font-semibold text-soft-black/60">
-                          Duration
-                        </span>
-                        <span className="text-[13px] font-bold text-soft-black">
-                          {formatDuration(
-                            Math.max(
-                              clipEnd(selectedClip) - clipStart(selectedClip),
-                              0
-                            )
-                          )}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+              <VisualTrimmer
+                clip={selectedClip}
+                frames={trimFrames}
+                loadingFrames={loadingTrimFrames}
+                isDirty={trimDirty}
+                onDirtyChange={setTrimDirty}
+                onPreviewTime={(time) => {
+                  const video = videoRef.current;
+                  if (!video || !selectedClip || selectedClip.kind !== "video") {
+                    return;
+                  }
+                  video.pause();
+                  setIsPlaying(false);
+                  video.currentTime = Math.max(0, Math.min(time, selectedClip.duration));
+                }}
+                onApply={(clipId, startTime, endTime) => {
+                  updateClipTrim(clipId, { startTime, endTime });
+                  setTrimDirty(false);
+                  const video = videoRef.current;
+                  if (video) video.currentTime = startTime;
+                  toast.success("Trim applied", {
+                    description: `${formatDuration(
+                      Math.max(endTime - startTime, 0)
+                    )} selected.`,
+                  });
+                }}
+              />
             </Tabs.Content>
 
             <Tabs.Content value="layers" className="flex flex-col gap-2">
