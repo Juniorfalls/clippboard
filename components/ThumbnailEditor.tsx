@@ -217,26 +217,34 @@ export function ThumbnailEditor({
       if (cancelled) return;
 
       try {
+        if (!video.videoWidth || !video.videoHeight) return;
+
         const frame = document.createElement("canvas");
         frame.width = video.videoWidth;
         frame.height = video.videoHeight;
         const context = frame.getContext("2d");
         if (!context) return;
         context.drawImage(video, 0, 0, frame.width, frame.height);
+        const videoFrameUrl = frame.toDataURL("image/png");
 
-        const image = new fabric.Image(frame, {
-          selectable: false,
-          evented: false,
+        const image = await fabric.Image.fromURL(videoFrameUrl, {
+          crossOrigin: "anonymous",
         });
+        // Cover the 1280x720 canvas without stretching or cropping the frame.
         const scale = Math.max(
-          CANVAS_WIDTH / frame.width,
-          CANVAS_HEIGHT / frame.height
+          CANVAS_WIDTH / (image.width ?? CANVAS_WIDTH),
+          CANVAS_HEIGHT / (image.height ?? CANVAS_HEIGHT)
         );
         image.set({
           scaleX: scale,
           scaleY: scale,
-          left: (CANVAS_WIDTH - frame.width * scale) / 2,
-          top: (CANVAS_HEIGHT - frame.height * scale) / 2,
+          originX: "center",
+          originY: "center",
+          left: CANVAS_WIDTH / 2,
+          top: CANVAS_HEIGHT / 2,
+          selectable: false,
+          evented: false,
+          hoverCursor: "default",
         });
 
         const current = canvasRef.current;
@@ -246,6 +254,7 @@ export function ThumbnailEditor({
           .find((object) => object instanceof fabric.Image);
         if (existing) current.remove(existing);
         current.add(image);
+        current.sendObjectToBack(image);
         const backgroundRect = backgroundRef.current;
         if (backgroundRect) current.sendObjectToBack(backgroundRect);
         current.requestRenderAll();

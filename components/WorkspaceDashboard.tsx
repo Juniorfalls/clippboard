@@ -1,9 +1,10 @@
 "use client";
 
 import { upload } from "@vercel/blob/client";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRealtime } from "inngest/react";
-import { Captions, Clapperboard, FolderOpen, Loader2, Lock, ScanFace, Scissors } from "lucide-react";
+import { Captions, Clapperboard, FolderOpen, Loader2, Lock, ScanFace, Scissors, Video } from "lucide-react";
 import { toast } from "sonner";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CustomDropzone } from "@/components/CustomDropzone";
@@ -1127,6 +1128,16 @@ export function WorkspaceDashboard({
             Workspace
           </h1>
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/dashboard/editor"
+              className={cn(
+                "inline-flex items-center gap-2 rounded-2 border border-brand-blue bg-white px-4 py-2.5 text-[13px] font-semibold text-soft-black duration-200 hover:bg-brand-blue-light xs:rounded-3",
+                focusRing
+              )}
+            >
+              <Video className="h-4 w-4 text-brand-blue" aria-hidden />
+              Open Video Editor
+            </Link>
             <span className="inline-flex items-center gap-2 rounded-full border border-brand-blue-light bg-brand-blue-light/50 px-3 py-1.5 text-[12px] font-semibold text-soft-black/70">
               <Clapperboard className="h-3.5 w-3.5 text-brand-blue" aria-hidden />
               Clips Generated This Month:{" "}

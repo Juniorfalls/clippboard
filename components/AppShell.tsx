@@ -20,6 +20,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     []
   );
 
+  // The standalone editor owns the whole viewport (no sidebar or shell chrome).
+  if (pathname === "/dashboard/editor") {
+    return <>{children}</>;
+  }
+
   const isAppPage =
     pathname === "/dashboard" ||
     pathname.startsWith("/dashboard/") ||
