@@ -17,9 +17,10 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Bold,
-  Check,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -34,6 +35,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  SlidersHorizontal,
   Trash2,
   Type,
   UploadCloud,
@@ -57,6 +59,95 @@ const FONT_OPTIONS = [
 ];
 
 const TEXT_COLORS = ["#FFFFFF", "#1C1C1C", "#3B82F6", "#FDE047", "#EF4444"];
+
+const TEXT_PRESETS = [
+  {
+    id: "headline",
+    label: "Headline",
+    hint: "72px impact",
+    fontSize: 72,
+    fontWeight: "bold" as const,
+    fontFamily: "Impact, sans-serif",
+    text: "YOUR HEADLINE",
+  },
+  {
+    id: "subtitle",
+    label: "Subtitle",
+    hint: "36px medium",
+    fontSize: 36,
+    fontWeight: "600" as const,
+    fontFamily: "Inter, sans-serif",
+    text: "Your subtitle text",
+  },
+  {
+    id: "caption",
+    label: "Caption",
+    hint: "24px regular",
+    fontSize: 24,
+    fontWeight: "normal" as const,
+    fontFamily: "Inter, sans-serif",
+    text: "Your caption text",
+  },
+];
+
+type TextPresetId = (typeof TEXT_PRESETS)[number]["id"];
+
+type ColorGrade = {
+  exposure: number;
+  contrast: number;
+  saturation: number;
+  temperature: number;
+};
+
+const NO_GRADE: ColorGrade = {
+  exposure: 0,
+  contrast: 0,
+  saturation: 0,
+  temperature: 0,
+};
+
+const FILTER_PRESETS: {
+  id: string;
+  label: string;
+  grade: ColorGrade;
+  swatch: string;
+}[] = [
+  {
+    id: "original",
+    label: "Original",
+    grade: NO_GRADE,
+    swatch: "linear-gradient(135deg,#e5e7eb,#9ca3af)",
+  },
+  {
+    id: "cinematic",
+    label: "Cinematic",
+    grade: { exposure: -4, contrast: 18, saturation: -8, temperature: -12 },
+    swatch: "linear-gradient(135deg,#1e3a8a,#0f172a)",
+  },
+  {
+    id: "vintage",
+    label: "Vintage",
+    grade: { exposure: 6, contrast: -8, saturation: -24, temperature: 30 },
+    swatch: "linear-gradient(135deg,#d6b98c,#8b5e3c)",
+  },
+  {
+    id: "bw",
+    label: "B & W",
+    grade: { exposure: 2, contrast: 12, saturation: -100, temperature: 0 },
+    swatch: "linear-gradient(135deg,#f9fafb,#1c1c1c)",
+  },
+  {
+    id: "warm",
+    label: "Warm",
+    grade: { exposure: 5, contrast: 4, saturation: 12, temperature: 34 },
+    swatch: "linear-gradient(135deg,#fbbf24,#ef4444)",
+  },
+];
+
+const RESOLUTIONS = [
+  { value: "1080p", label: "1080p · 1920×1080" },
+  { value: "4K", label: "4K · 3840×2160" },
+];
 
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-blue";
@@ -88,9 +179,20 @@ type TextSelection = {
   stroke: string;
   strokeWidth: number;
   shadow: boolean;
+  shadowX: number;
+  shadowY: number;
+  shadowBlur: number;
+  shadowColor: string;
 };
 
 type OverlaySelection = TextSelection | { kind: "image" } | null;
+
+type EditorLayer = {
+  id: string;
+  label: string;
+  kind: "video" | "text" | "image";
+  object: fabric.FabricObject | null;
+};
 
 function createId() {
   if (
@@ -121,6 +223,131 @@ function extensionFor(file: File) {
   return extension && /^[a-z0-9]+$/.test(extension) ? extension : "mp4";
 }
 
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "");
+  const full =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : normalized.padEnd(6, "0").slice(0, 6);
+  const value = Number.parseInt(full, 16);
+  if (Number.isNaN(value)) return { r: 255, g: 255, b: 255 };
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
+  };
+}
+
+function rgbToHex(r: number, g: number, b: number) {
+  return `#${[r, g, b]
+    .map((channel) => Math.max(0, Math.min(255, channel)))
+    .map((channel) => channel.toString(16).padStart(2, "0"))
+    .join("")}`.toUpperCase();
+}
+
+function gradeToCssFilter(grade: ColorGrade) {
+  const brightness = 1 + grade.exposure / 100;
+  const contrast = 1 + grade.contrast / 100;
+  const saturation = Math.max(0, 1 + grade.saturation / 100);
+  const warm = Math.max(grade.temperature, 0) / 100;
+  const cool = Math.max(-grade.temperature, 0) / 100;
+  return [
+    `brightness(${brightness.toFixed(2)})`,
+    `contrast(${contrast.toFixed(2)})`,
+    `saturate(${saturation.toFixed(2)})`,
+    `sepia(${(warm * 0.38).toFixed(2)})`,
+    `hue-rotate(${(-cool * 12).toFixed(1)}deg)`,
+  ].join(" ");
+}
+
+function ColorPicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const rgb = hexToRgb(value);
+  const updateChannel = (channel: "r" | "g" | "b", next: number) => {
+    onChange(
+      rgbToHex(
+        channel === "r" ? next : rgb.r,
+        channel === "g" ? next : rgb.g,
+        channel === "b" ? next : rgb.b
+      )
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2 border border-border-gray bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12px] font-semibold text-soft-black">{label}</span>
+        <span
+          className="h-6 w-10 rounded-md border border-border-gray"
+          style={{ backgroundColor: value }}
+          aria-hidden
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {TEXT_COLORS.map((color) => (
+          <button
+            key={color}
+            type="button"
+            aria-label={`${label} ${color}`}
+            aria-pressed={value.toUpperCase() === color.toUpperCase()}
+            onClick={() => onChange(color)}
+            className={cn(
+              "h-6 rounded-md border duration-200",
+              value.toUpperCase() === color.toUpperCase()
+                ? "border-brand-blue ring-2 ring-brand-blue-light"
+                : "border-border-gray hover:border-brand-blue",
+              focusRing
+            )}
+            style={{ backgroundColor: color }}
+          />
+        ))}
+      </div>
+      {(["r", "g", "b"] as const).map((channel) => (
+        <label key={channel} className="flex items-center gap-2 text-[11px] font-semibold uppercase text-soft-black/50">
+          <span className="w-3">{channel}</span>
+          <input
+            type="range"
+            min={0}
+            max={255}
+            value={rgb[channel]}
+            onChange={(event) =>
+              updateChannel(channel, Number(event.target.value))
+            }
+            aria-label={`${label} ${channel} channel`}
+            className={cn("h-1.5 w-full cursor-pointer accent-brand-blue", focusRing)}
+          />
+          <span className="w-7 text-right tabular-nums text-soft-black/60">
+            {rgb[channel]}
+          </span>
+        </label>
+      ))}
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (/^#?[0-9a-fA-F]{0,6}$/.test(next)) {
+            onChange(next.startsWith("#") ? next.toUpperCase() : `#${next.toUpperCase()}`);
+          }
+        }}
+        aria-label={`${label} hex value`}
+        spellCheck={false}
+        className={cn(inputClass, "uppercase")}
+      />
+    </div>
+  );
+}
+
 export function VideoEditor({ userId }: { userId: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasElementRef = useRef<HTMLCanvasElement>(null);
@@ -138,11 +365,55 @@ export function VideoEditor({ userId }: { userId: string }) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
+  const [textPreset, setTextPreset] = useState<TextPresetId>("headline");
+  const [colorGrade, setColorGrade] = useState<ColorGrade>(NO_GRADE);
+  const [activeFilter, setActiveFilter] = useState("original");
+  const [resolution, setResolution] = useState<"1080p" | "4K">("1080p");
+  const [overlayLayers, setOverlayLayers] = useState<EditorLayer[]>([]);
+
+  const refreshLayers = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      setOverlayLayers([]);
+      return;
+    }
+
+    const next = canvas.getObjects().map((object, index) => {
+      const tagged = object as fabric.FabricObject & {
+        layerId?: string;
+        layerName?: string;
+      };
+      const text = isTextObject(object) ? object.text?.trim() : "";
+      return {
+        id: tagged.layerId ?? `layer-${index}`,
+        label:
+          text && text.length > 0
+            ? text.slice(0, 28)
+            : tagged.layerName ?? (isTextObject(object) ? "Text" : "Logo"),
+        kind: isTextObject(object) ? "text" : "image",
+        object,
+      } as EditorLayer;
+    });
+
+    setOverlayLayers(next.reverse());
+  }, []);
 
   const activeClip = useMemo(
     () => clips.find((clip) => clip.id === activeClipId) ?? clips[0] ?? null,
     [clips, activeClipId]
   );
+
+  const layers = useMemo<EditorLayer[]>(() => {
+    const videoLayer: EditorLayer = {
+      id: "video-layer",
+      label: activeClip?.name ?? "Video",
+      kind: "video",
+      object: null,
+    };
+    return [videoLayer, ...overlayLayers];
+  }, [activeClip?.name, overlayLayers]);
+
+  const cssFilter = useMemo(() => gradeToCssFilter(colorGrade), [colorGrade]);
 
   const totalDuration = useMemo(
     () => clips.reduce((sum, clip) => sum + clip.duration, 0),
@@ -185,27 +456,42 @@ export function VideoEditor({ userId }: { userId: string }) {
             typeof object.stroke === "string" ? object.stroke : "#1C1C1C",
           strokeWidth: Number(object.strokeWidth ?? 0),
           shadow: Boolean(object.shadow),
+          shadowX: Number(object.shadow?.offsetX ?? 6),
+          shadowY: Number(object.shadow?.offsetY ?? 8),
+          shadowBlur: Number(object.shadow?.blur ?? 18),
+          shadowColor:
+            typeof object.shadow?.color === "string" &&
+            object.shadow.color.startsWith("#")
+              ? object.shadow.color
+              : "#1C1C1C",
         });
       } else {
         setSelection({ kind: "image" });
       }
     };
 
+    const syncLayers = () => refreshLayers();
+
     canvas.on("selection:created", sync);
     canvas.on("selection:updated", sync);
     canvas.on("selection:cleared", sync);
     canvas.on("object:modified", sync);
+    canvas.on("object:added", syncLayers);
+    canvas.on("object:removed", syncLayers);
 
     return () => {
       canvas.off("selection:created", sync);
       canvas.off("selection:updated", sync);
       canvas.off("selection:cleared", sync);
       canvas.off("object:modified", sync);
+      canvas.off("object:added", syncLayers);
+      canvas.off("object:removed", syncLayers);
       void canvas.dispose();
       canvasRef.current = null;
       setIsReady(false);
+      setOverlayLayers([]);
     };
-  }, []);
+  }, [refreshLayers]);
 
   // Revoke object URLs when clips are removed or the editor unmounts.
   useEffect(() => {
@@ -360,42 +646,76 @@ export function VideoEditor({ userId }: { userId: string }) {
   }, [activeClip?.id, activeClip?.kind, playNextClip]);
 
   // ------------------------------------------------------------- Text tools
-  function applyShadow(object: fabric.IText, enabled: boolean) {
+  function applyShadow(
+    object: fabric.IText,
+    enabled: boolean,
+    offsetX: number,
+    offsetY: number,
+    blur: number,
+    color: string
+  ) {
     object.set(
       "shadow",
       enabled
         ? new fabric.Shadow({
-            color: "rgba(0,0,0,0.55)",
-            blur: 18,
-            offsetX: 6,
-            offsetY: 8,
+            color,
+            blur,
+            offsetX,
+            offsetY,
           })
         : null
     );
+  }
+
+  function tagLayer(object: fabric.FabricObject, label: string) {
+    const tagged = object as fabric.FabricObject & {
+      layerId?: string;
+      layerName?: string;
+    };
+    tagged.layerId = tagged.layerId ?? createId();
+    tagged.layerName = label;
+  }
+
+  function applyTextPreset(id: TextPresetId) {
+    setTextPreset(id);
+    const preset = TEXT_PRESETS.find((item) => item.id === id);
+    if (!preset) return;
+
+    if (selection?.kind === "text") {
+      updateSelectedText({
+        fontSize: preset.fontSize,
+        fontFamily: preset.fontFamily,
+        bold: preset.fontWeight !== "normal",
+      });
+    }
   }
 
   function addTextLayer() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const layer = new fabric.IText("YOUR HEADLINE", {
+    const preset = TEXT_PRESETS.find((item) => item.id === textPreset) ?? TEXT_PRESETS[0];
+    const layer = new fabric.IText(preset.text, {
       left: CANVAS_WIDTH / 2,
       top: CANVAS_HEIGHT / 2,
       originX: "center",
       originY: "center",
-      fontFamily: "Arial Black, sans-serif",
-      fontSize: 96,
+      fontFamily: preset.fontFamily,
+      fontSize: preset.fontSize,
       fill: "#FFFFFF",
-      fontWeight: "bold",
-      lineHeight: 1.05,
-      textAlign: "left",
+      fontWeight: preset.fontWeight === "normal" ? "normal" : "bold",
+      lineHeight: 1.15,
+      textAlign: "center",
+      stroke: "#1C1C1C",
+      strokeWidth: preset.id === "headline" ? 3 : 0,
       shadow: new fabric.Shadow({
-        color: "rgba(0,0,0,0.45)",
-        blur: 16,
-        offsetX: 5,
-        offsetY: 6,
+        color: "#1C1C1C",
+        blur: 18,
+        offsetX: 6,
+        offsetY: 8,
       }),
     });
+    tagLayer(layer, preset.label);
 
     canvas.add(layer);
     canvas.setActiveObject(layer);
@@ -427,6 +747,7 @@ export function VideoEditor({ userId }: { userId: string }) {
         scaleX: scale,
         scaleY: scale,
       });
+      tagLayer(image, file.name.replace(/\.[^.]+$/, "").slice(0, 28) || "Logo");
 
       canvas.add(image);
       canvas.setActiveObject(image);
@@ -498,6 +819,29 @@ export function VideoEditor({ userId }: { userId: string }) {
       shadow:
         update.shadow ??
         (selection?.kind === "text" ? selection.shadow : Boolean(active.shadow)),
+      shadowX:
+        update.shadowX ??
+        (selection?.kind === "text"
+          ? selection.shadowX
+          : Number(active.shadow?.offsetX ?? 6)),
+      shadowY:
+        update.shadowY ??
+        (selection?.kind === "text"
+          ? selection.shadowY
+          : Number(active.shadow?.offsetY ?? 8)),
+      shadowBlur:
+        update.shadowBlur ??
+        (selection?.kind === "text"
+          ? selection.shadowBlur
+          : Number(active.shadow?.blur ?? 18)),
+      shadowColor:
+        update.shadowColor ??
+        (selection?.kind === "text"
+          ? selection.shadowColor
+          : typeof active.shadow?.color === "string" &&
+              active.shadow.color.startsWith("#")
+            ? active.shadow.color
+            : "#1C1C1C"),
     };
 
     active.set({
@@ -511,9 +855,17 @@ export function VideoEditor({ userId }: { userId: string }) {
       stroke: next.stroke,
       strokeWidth: next.strokeWidth,
     });
-    applyShadow(active, next.shadow);
+    applyShadow(
+      active,
+      next.shadow,
+      next.shadowX,
+      next.shadowY,
+      next.shadowBlur,
+      next.shadowColor
+    );
     active.canvas?.requestRenderAll();
     setSelection({ kind: "text", object: active, ...next });
+    refreshLayers();
   }
 
   function deleteSelected() {
@@ -524,6 +876,43 @@ export function VideoEditor({ userId }: { userId: string }) {
     canvas.discardActiveObject();
     canvas.requestRenderAll();
     setSelection(null);
+    refreshLayers();
+  }
+
+  function selectLayer(layer: EditorLayer) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    if (layer.kind === "video" || !layer.object) {
+      canvas.discardActiveObject();
+      canvas.requestRenderAll();
+      setSelection(null);
+      return;
+    }
+
+    canvas.setActiveObject(layer.object);
+    canvas.requestRenderAll();
+  }
+
+  function moveLayer(layer: EditorLayer, direction: "back" | "front") {
+    const canvas = canvasRef.current;
+    if (!canvas || !layer.object) return;
+
+    if (direction === "back") canvas.sendObjectToBack(layer.object);
+    else canvas.bringObjectToFront(layer.object);
+    canvas.requestRenderAll();
+    refreshLayers();
+  }
+
+  function deleteLayer(layer: EditorLayer) {
+    const canvas = canvasRef.current;
+    if (!canvas || !layer.object) return;
+
+    canvas.remove(layer.object);
+    canvas.discardActiveObject();
+    canvas.requestRenderAll();
+    setSelection(null);
+    refreshLayers();
   }
 
   function exportOverlayPng() {
@@ -661,60 +1050,92 @@ export function VideoEditor({ userId }: { userId: string }) {
 
       let finalName = stitchedName;
       const overlayDataUrl = exportOverlayPng();
+      let overlayName: string | null = null;
 
       if (overlayDataUrl) {
         const overlayBlob = await (await fetch(overlayDataUrl)).blob();
-        const overlayName = `overlay-${runId}.png`;
+        overlayName = `overlay-${runId}.png`;
         await ffmpeg.writeFile(
           overlayName,
           new Uint8Array(await overlayBlob.arrayBuffer())
         );
         writtenFiles.push(overlayName);
+      }
 
-        const finalOutput = `final-${runId}.mp4`;
+      const target =
+        resolution === "4K"
+          ? { width: 3840, height: 2160 }
+          : { width: 1920, height: 1080 };
+      const brightness = (colorGrade.exposure / 100).toFixed(3);
+      const contrast = (1 + colorGrade.contrast / 100).toFixed(3);
+      const saturation = Math.max(
+        0,
+        1 + colorGrade.saturation / 100
+      ).toFixed(3);
+      const warmth = ((colorGrade.temperature / 100) * 0.3).toFixed(3);
+      const filterComplex = [
+        `[0:v]eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}` +
+          `,colorbalance=rs=${warmth}:gs=${warmth === "0.000" ? "0.000" : (Number(warmth) * 0.2).toFixed(3)}:bs=${(-Number(warmth)).toFixed(3)}` +
+          `,scale=${target.width}:${target.height}:force_original_aspect_ratio=decrease` +
+          `,pad=${target.width}:${target.height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p[base]`,
+        overlayName
+          ? `[1:v][base]scale2ref[ov][scaled];[scaled][ov]overlay=0:0[out]`
+          : `[base]null[out]`,
+      ].join(";");
+
+      const finalOutput = `final-${runId}.mp4`;
+      const finalArgs = [
+        "-i",
+        stitchedName,
+        ...(overlayName ? ["-i", overlayName] : []),
+        "-filter_complex",
+        filterComplex,
+        "-map",
+        "[out]",
+        "-map",
+        "0:a?",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "copy",
+        finalOutput,
+      ];
+
+      code = await ffmpeg.exec(finalArgs);
+
+      if (code !== 0) {
         code = await ffmpeg.exec([
           "-i",
           stitchedName,
-          "-i",
-          overlayName,
+          ...(overlayName ? ["-i", overlayName] : []),
           "-filter_complex",
-          "[1:v][0:v]scale2ref[ov][base];[base][ov]overlay=0:0",
+          filterComplex,
+          "-map",
+          "[out]",
+          "-an",
           "-c:v",
           "libx264",
           "-preset",
           "ultrafast",
           "-pix_fmt",
           "yuv420p",
-          "-c:a",
-          "copy",
           finalOutput,
         ]);
-
-        if (code !== 0) {
-          code = await ffmpeg.exec([
-            "-i",
-            stitchedName,
-            "-i",
-            overlayName,
-            "-filter_complex",
-            "[0:v][1:v]overlay=0:0",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "ultrafast",
-            "-pix_fmt",
-            "yuv420p",
-            "-an",
-            finalOutput,
-          ]);
-        }
-
-        if (code !== 0) {
-          throw new Error("FFmpeg could not apply the text and logo overlay.");
-        }
-        writtenFiles.push(finalOutput);
-        finalName = finalOutput;
       }
+
+      if (code !== 0) {
+        throw new Error(
+          "FFmpeg could not apply the color grade and overlay to this video."
+        );
+      }
+      writtenFiles.push(finalOutput);
+      finalName = finalOutput;
 
       setExportProgress(96);
       const data = await ffmpeg.readFile(finalName);
@@ -899,12 +1320,14 @@ export function VideoEditor({ userId }: { userId: string }) {
                   onEnded={playNextClip}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
+                  style={{ filter: cssFilter }}
                   className="h-full w-full object-contain"
                 />
               ) : activeClip?.kind === "image" ? (
                 <img
                   src={activeClip.url}
                   alt={activeClip.name}
+                  style={{ filter: cssFilter }}
                   className="h-full w-full object-contain"
                 />
               ) : (
@@ -1142,18 +1565,19 @@ export function VideoEditor({ userId }: { userId: string }) {
           <Tabs.Root defaultValue="text" className="flex flex-col gap-3">
             <Tabs.List
               aria-label="Overlay properties"
-              className="grid grid-cols-3 gap-1 rounded-lg border border-border-gray bg-white p-1"
+              className="grid grid-cols-4 gap-1 rounded-lg border border-border-gray bg-white p-1"
             >
               {[
                 { value: "text", label: "Text", icon: Type },
                 { value: "logo", label: "Logo", icon: ImagePlus },
-                { value: "colors", label: "Colors", icon: Palette },
+                { value: "colors", label: "Color", icon: Palette },
+                { value: "layers", label: "Layers", icon: Layers },
               ].map(({ value, label, icon: Icon }) => (
                 <Tabs.Trigger
                   key={value}
                   value={value}
                   className={cn(
-                    "inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[12px] font-semibold text-soft-black/60 duration-200 hover:bg-warm-white data-[state=active]:bg-brand-blue-light data-[state=active]:text-soft-black",
+                    "inline-flex items-center justify-center gap-1.5 rounded-md px-1.5 py-2 text-[12px] font-semibold text-soft-black/60 duration-200 hover:bg-warm-white data-[state=active]:bg-brand-blue-light data-[state=active]:text-soft-black",
                     focusRing
                   )}
                 >
@@ -1164,6 +1588,32 @@ export function VideoEditor({ userId }: { userId: string }) {
             </Tabs.List>
 
             <Tabs.Content value="text" className="flex flex-col gap-3">
+              <div className="rounded-2 border border-border-gray bg-white p-2">
+                <p className="mb-1.5 px-1 text-[12px] font-semibold text-soft-black/60">
+                  Text preset
+                </p>
+                <div className="grid grid-cols-3 gap-1">
+                  {TEXT_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      aria-pressed={textPreset === preset.id}
+                      onClick={() => applyTextPreset(preset.id)}
+                      className={cn(
+                        "flex flex-col items-center rounded-lg px-1.5 py-2 text-center duration-200",
+                        textPreset === preset.id
+                          ? "bg-brand-blue-light text-soft-black"
+                          : "text-soft-black/60 hover:bg-warm-white",
+                        focusRing
+                      )}
+                    >
+                      <span className="text-[12px] font-semibold">{preset.label}</span>
+                      <span className="text-[10px]">{preset.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <button
                 type="button"
                 onClick={addTextLayer}
@@ -1174,7 +1624,7 @@ export function VideoEditor({ userId }: { userId: string }) {
                 )}
               >
                 <Plus className="h-4 w-4" aria-hidden />
-                Add text layer
+                Add {TEXT_PRESETS.find((item) => item.id === textPreset)?.label ?? "text"}
               </button>
 
               {textSelection ? (
@@ -1229,24 +1679,36 @@ export function VideoEditor({ userId }: { userId: string }) {
                     </div>
                   </div>
 
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[13px] font-semibold">Font weight</span>
+                    <div className="grid grid-cols-2 gap-1 rounded-lg border border-border-gray bg-white p-1">
+                      {[
+                        { label: "Normal", value: false },
+                        { label: "Bold", value: true },
+                      ].map((option) => (
+                        <button
+                          key={option.label}
+                          type="button"
+                          aria-pressed={textSelection.bold === option.value}
+                          onClick={() =>
+                            updateSelectedText({ bold: option.value })
+                          }
+                          className={cn(
+                            "inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[12px] font-semibold duration-200",
+                            textSelection.bold === option.value
+                              ? "bg-brand-blue-light text-soft-black"
+                              : "text-soft-black/60 hover:bg-warm-white",
+                            focusRing
+                          )}
+                        >
+                          {option.value && <Bold className="h-3.5 w-3.5" aria-hidden />}
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      aria-pressed={textSelection.bold}
-                      aria-label="Bold"
-                      onClick={() =>
-                        updateSelectedText({ bold: !textSelection.bold })
-                      }
-                      className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-lg border duration-200",
-                        textSelection.bold
-                          ? "border-brand-blue bg-brand-blue-light"
-                          : "border-border-gray bg-white hover:bg-warm-white",
-                        focusRing
-                      )}
-                    >
-                      <Bold className="h-4 w-4" aria-hidden />
-                    </button>
                     <button
                       type="button"
                       aria-pressed={textSelection.italic}
@@ -1288,6 +1750,119 @@ export function VideoEditor({ userId }: { userId: string }) {
                         <Icon className="h-4 w-4" aria-hidden />
                       </button>
                     ))}
+                  </div>
+
+                  <ColorPicker
+                    label="Text color"
+                    value={textSelection.fill}
+                    onChange={(fill) => updateSelectedText({ fill })}
+                  />
+
+                  <div className="rounded-2 border border-border-gray bg-white p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-[13px] font-semibold">Outline</span>
+                      <span className="text-[11px] font-semibold text-soft-black/50">
+                        {textSelection.strokeWidth}px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={12}
+                      step={1}
+                      value={textSelection.strokeWidth}
+                      onChange={(event) =>
+                        updateSelectedText({
+                          strokeWidth: Number(event.target.value),
+                        })
+                      }
+                      aria-label="Text outline width"
+                      className={cn("mb-2 h-1.5 w-full cursor-pointer accent-brand-blue", focusRing)}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      {["#1C1C1C", "#FFFFFF", "#3B82F6"].map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          aria-pressed={textSelection.stroke === color}
+                          aria-label={`Outline ${color}`}
+                          onClick={() =>
+                            updateSelectedText({
+                              stroke: color,
+                              strokeWidth: textSelection.strokeWidth || 4,
+                            })
+                          }
+                          className={cn(
+                            "h-8 w-8 rounded-full border-2 duration-200",
+                            textSelection.stroke === color
+                              ? "border-brand-blue ring-2 ring-brand-blue-light"
+                              : "border-border-gray",
+                            focusRing
+                          )}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2 border border-border-gray bg-white p-3">
+                    <button
+                      type="button"
+                      aria-pressed={textSelection.shadow}
+                      onClick={() =>
+                        updateSelectedText({ shadow: !textSelection.shadow })
+                      }
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-[12px] font-semibold duration-200",
+                        textSelection.shadow
+                          ? "border-brand-blue bg-brand-blue-light text-soft-black"
+                          : "border-border-gray bg-white text-soft-black/70 hover:bg-warm-white",
+                        focusRing
+                      )}
+                    >
+                      Text shadow
+                      <span>{textSelection.shadow ? "On" : "Off"}</span>
+                    </button>
+
+                    {textSelection.shadow && (
+                      <div className="mt-3 flex flex-col gap-2">
+                        {[
+                          { key: "shadowX" as const, label: "Shadow X", min: -40, max: 40 },
+                          { key: "shadowY" as const, label: "Shadow Y", min: -40, max: 40 },
+                          { key: "shadowBlur" as const, label: "Blur", min: 0, max: 60 },
+                        ].map((control) => (
+                          <label
+                            key={control.key}
+                            className="flex items-center gap-2 text-[11px] font-semibold text-soft-black/60"
+                          >
+                            <span className="w-16">{control.label}</span>
+                            <input
+                              type="range"
+                              min={control.min}
+                              max={control.max}
+                              value={textSelection[control.key]}
+                              onChange={(event) =>
+                                updateSelectedText({
+                                  [control.key]: Number(event.target.value),
+                                })
+                              }
+                              aria-label={control.label}
+                              className={cn("h-1.5 w-full cursor-pointer accent-brand-blue", focusRing)}
+                            />
+                            <span className="w-7 text-right tabular-nums">
+                              {textSelection[control.key]}
+                            </span>
+                          </label>
+                        ))}
+                        <ColorPicker
+                          label="Shadow color"
+                          value={textSelection.shadowColor}
+                          onChange={(shadowColor) =>
+                            updateSelectedText({ shadowColor })
+                          }
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <button
@@ -1362,118 +1937,195 @@ export function VideoEditor({ userId }: { userId: string }) {
             </Tabs.Content>
 
             <Tabs.Content value="colors" className="flex flex-col gap-3">
-              {textSelection ? (
-                <>
-                  <div className="rounded-2 border border-border-gray bg-white p-3">
-                    <p className="mb-2 text-[13px] font-semibold">Text color</p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {TEXT_COLORS.map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          aria-pressed={textSelection.fill === color}
-                          aria-label={`Text color ${color}`}
-                          onClick={() => updateSelectedText({ fill: color })}
-                          className={cn(
-                            "flex h-8 w-8 items-center justify-center rounded-full border-2 duration-200",
-                            textSelection.fill === color
-                              ? "border-brand-blue ring-2 ring-brand-blue-light"
-                              : "border-border-gray",
-                            focusRing
-                          )}
-                          style={{ backgroundColor: color }}
-                        >
-                          {textSelection.fill === color && (
-                            <Check
-                              className={cn(
-                                "h-4 w-4",
-                                color === "#FFFFFF" || color === "#FDE047"
-                                  ? "text-soft-black"
-                                  : "text-white"
-                              )}
-                              aria-hidden
-                            />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+              <div className="rounded-2 border border-border-gray bg-white p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold">
+                  <SlidersHorizontal className="h-4 w-4 text-brand-blue" aria-hidden />
+                  Color grading
+                </div>
+                <div className="flex flex-col gap-3">
+                  {[
+                    { key: "exposure" as const, label: "Exposure", min: -100, max: 100 },
+                    { key: "contrast" as const, label: "Contrast", min: -100, max: 100 },
+                    { key: "saturation" as const, label: "Saturation", min: -100, max: 100 },
+                    { key: "temperature" as const, label: "Temperature", min: -100, max: 100 },
+                  ].map((control) => (
+                    <label
+                      key={control.key}
+                      className="flex flex-col gap-1.5 text-[12px] font-semibold text-soft-black/60"
+                    >
+                      <span className="flex items-center justify-between">
+                        <span>{control.label}</span>
+                        <span className="tabular-nums text-soft-black">
+                          {colorGrade[control.key] > 0 ? "+" : ""}
+                          {colorGrade[control.key]}
+                        </span>
+                      </span>
+                      <input
+                        type="range"
+                        min={control.min}
+                        max={control.max}
+                        value={colorGrade[control.key]}
+                        onChange={(event) => {
+                          setColorGrade((current) => ({
+                            ...current,
+                            [control.key]: Number(event.target.value),
+                          }));
+                          setActiveFilter("custom");
+                        }}
+                        aria-label={control.label}
+                        className={cn("h-1.5 w-full cursor-pointer accent-brand-blue", focusRing)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setColorGrade(NO_GRADE);
+                    setActiveFilter("original");
+                  }}
+                  className={cn(
+                    "mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border-gray bg-warm-white px-3 py-2 text-[12px] font-semibold duration-200 hover:bg-brand-blue-light",
+                    focusRing
+                  )}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                  Reset grade
+                </button>
+              </div>
 
-                  <div className="rounded-2 border border-border-gray bg-white p-3">
-                    <p className="mb-2 text-[13px] font-semibold">Outline</p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {["#1C1C1C", "#FFFFFF", "#3B82F6"].map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          aria-pressed={textSelection.stroke === color}
-                          aria-label={`Outline ${color}`}
-                          onClick={() =>
-                            updateSelectedText({
-                              stroke: color,
-                              strokeWidth: textSelection.strokeWidth || 4,
-                            })
-                          }
-                          className={cn(
-                            "h-8 w-8 rounded-full border-2 duration-200",
-                            textSelection.stroke === color
-                              ? "border-brand-blue ring-2 ring-brand-blue-light"
-                              : "border-border-gray",
-                            focusRing
-                          )}
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
+              <div className="rounded-2 border border-border-gray bg-white p-3">
+                <p className="mb-2 text-[13px] font-semibold">Filter presets</p>
+                <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+                  {FILTER_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      aria-pressed={activeFilter === preset.id}
+                      onClick={() => {
+                        setActiveFilter(preset.id);
+                        setColorGrade({ ...preset.grade });
+                      }}
+                      className={cn(
+                        "flex w-[74px] shrink-0 flex-col items-center gap-1 rounded-lg border-2 p-1 duration-200",
+                        activeFilter === preset.id
+                          ? "border-brand-blue"
+                          : "border-border-gray hover:border-brand-blue-light",
+                        focusRing
+                      )}
+                    >
+                      <span
+                        className="h-9 w-full rounded-md"
+                        style={{ backgroundImage: preset.swatch }}
+                        aria-hidden
+                      />
+                      <span className="text-[10px] font-semibold text-soft-black/70">
+                        {preset.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2 border border-border-gray bg-white p-3">
+                <CustomSelect
+                  label="Export resolution"
+                  value={resolution}
+                  onValueChange={(value) =>
+                    setResolution(value === "4K" ? "4K" : "1080p")
+                  }
+                  options={RESOLUTIONS}
+                />
+                <p className="mt-2 text-[11px] leading-relaxed text-soft-black/50">
+                  Color grading is previewed live and baked into the final
+                  render with FFmpeg.
+                </p>
+              </div>
+            </Tabs.Content>
+
+            <Tabs.Content value="layers" className="flex flex-col gap-2">
+              <p className="text-[12px] text-soft-black/50">
+                Topmost layers appear first. Select a layer to edit it on the
+                canvas.
+              </p>
+              <div className="flex flex-col gap-2">
+                {layers.map((layer) => {
+                  const activeObject = canvasRef.current?.getActiveObject() ?? null;
+                  const isActive =
+                    layer.kind === "video"
+                      ? activeObject === null
+                      : layer.object === activeObject;
+                  return (
+                    <div
+                      key={layer.id}
+                      className={cn(
+                        "flex items-center gap-2 rounded-2 border bg-white p-2",
+                        isActive ? "border-brand-blue" : "border-border-gray"
+                      )}
+                    >
                       <button
                         type="button"
-                        onClick={() =>
-                          updateSelectedText({
-                            strokeWidth: textSelection.strokeWidth ? 0 : 4,
-                          })
-                        }
+                        onClick={() => selectLayer(layer)}
                         className={cn(
-                          "rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold duration-200",
-                          textSelection.strokeWidth
-                            ? "border-brand-blue bg-brand-blue-light text-soft-black"
-                            : "border-border-gray bg-white text-soft-black/70",
+                          "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left duration-200 hover:bg-warm-white",
                           focusRing
                         )}
                       >
-                        {textSelection.strokeWidth ? "On" : "Off"}
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-blue-light text-brand-blue">
+                          {layer.kind === "video" ? (
+                            <Film className="h-3.5 w-3.5" aria-hidden />
+                          ) : layer.kind === "text" ? (
+                            <Type className="h-3.5 w-3.5" aria-hidden />
+                          ) : (
+                            <ImageIcon className="h-3.5 w-3.5" aria-hidden />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-soft-black">
+                          {layer.label}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveLayer(layer, "back")}
+                        disabled={layer.kind === "video"}
+                        aria-label={`Send ${layer.label} to back`}
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-md border border-border-gray text-soft-black/60 duration-200 hover:bg-warm-white disabled:opacity-30",
+                          focusRing
+                        )}
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveLayer(layer, "front")}
+                        disabled={layer.kind === "video"}
+                        aria-label={`Bring ${layer.label} to front`}
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-md border border-border-gray text-soft-black/60 duration-200 hover:bg-warm-white disabled:opacity-30",
+                          focusRing
+                        )}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteLayer(layer)}
+                        disabled={layer.kind === "video"}
+                        aria-label={`Delete ${layer.label}`}
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-md border border-red-200 text-red-600 duration-200 hover:bg-red-50 disabled:opacity-30",
+                          focusRing
+                        )}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
                       </button>
                     </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    aria-pressed={textSelection.shadow}
-                    onClick={() =>
-                      updateSelectedText({ shadow: !textSelection.shadow })
-                    }
-                    className={cn(
-                      "w-full rounded-lg border px-3 py-2 text-[12px] font-semibold duration-200",
-                      textSelection.shadow
-                        ? "border-brand-blue bg-brand-blue-light text-soft-black"
-                        : "border-border-gray bg-white text-soft-black/70 hover:bg-warm-white",
-                      focusRing
-                    )}
-                  >
-                    Drop shadow {textSelection.shadow ? "on" : "off"}
-                  </button>
-                </>
-              ) : (
-                <div className="rounded-2 border border-dashed border-border-gray bg-white p-3 text-[12px] leading-relaxed text-soft-black/55">
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-soft-black">
-                    <Palette className="h-4 w-4 text-brand-blue" aria-hidden />
-                    Select a text layer
-                  </span>
-                  <p className="mt-1">
-                    Pick a text layer on the preview to change its color,
-                    outline and shadow.
-                  </p>
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </Tabs.Content>
+
           </Tabs.Root>
         </aside>
       </div>
