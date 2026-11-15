@@ -9,8 +9,9 @@ import {
   type ChangeEvent,
   type DragEvent,
 } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
+import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
 import * as fabric from "fabric";
 import {
@@ -349,6 +350,7 @@ function ColorPicker({
 }
 
 export function VideoEditor({ userId }: { userId: string }) {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasElementRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
@@ -370,6 +372,30 @@ export function VideoEditor({ userId }: { userId: string }) {
   const [activeFilter, setActiveFilter] = useState("original");
   const [resolution, setResolution] = useState<"1080p" | "4K">("1080p");
   const [overlayLayers, setOverlayLayers] = useState<EditorLayer[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+
+  const markDirty = useCallback(() => setHasUnsavedChanges(true), []);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  function handleBack() {
+    if (hasUnsavedChanges) {
+      setLeaveDialogOpen(true);
+      return;
+    }
+    router.push("/dashboard");
+  }
 
   const refreshLayers = useCallback(() => {
     const canvas = canvasRef.current;
@@ -470,7 +496,10 @@ export function VideoEditor({ userId }: { userId: string }) {
       }
     };
 
-    const syncLayers = () => refreshLayers();
+    const syncLayers = () => {
+      refreshLayers();
+      markDirty();
+    };
 
     canvas.on("selection:created", sync);
     canvas.on("selection:updated", sync);
@@ -491,7 +520,7 @@ export function VideoEditor({ userId }: { userId: string }) {
       setIsReady(false);
       setOverlayLayers([]);
     };
-  }, [refreshLayers]);
+  }, [markDirty, refreshLayers]);
 
   // Revoke object URLs when clips are removed or the editor unmounts.
   useEffect(() => {
@@ -527,6 +556,7 @@ export function VideoEditor({ userId }: { userId: string }) {
 
     setClips((current) => [...current, ...next]);
     setActiveClipId((current) => current ?? next[0]?.id ?? null);
+    markDirty();
 
     next.forEach((clip) => {
       if (clip.kind !== "video") return;
@@ -553,7 +583,7 @@ export function VideoEditor({ userId }: { userId: string }) {
       accepted.length === 1 ? "Media added" : `${accepted.length} media files added`,
       { description: "Arrange them on the timeline, then export." }
     );
-  }, []);
+  }, [markDirty]);
 
   function handleMediaInput(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -569,6 +599,7 @@ export function VideoEditor({ userId }: { userId: string }) {
   }
 
   function removeClip(id: string) {
+    markDirty();
     setClips((current) => {
       const target = current.find((clip) => clip.id === id);
       if (target) URL.revokeObjectURL(target.url);
@@ -581,6 +612,7 @@ export function VideoEditor({ userId }: { userId: string }) {
   }
 
   function moveClip(id: string, direction: -1 | 1) {
+    markDirty();
     setClips((current) => {
       const index = current.findIndex((clip) => clip.id === id);
       const target = index + direction;
@@ -693,6 +725,7 @@ export function VideoEditor({ userId }: { userId: string }) {
   function addTextLayer() {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    markDirty();
 
     const preset = TEXT_PRESETS.find((item) => item.id === textPreset) ?? TEXT_PRESETS[0];
     const layer = new fabric.IText(preset.text, {
@@ -725,6 +758,7 @@ export function VideoEditor({ userId }: { userId: string }) {
   async function addLogoLayer(file: File) {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    markDirty();
 
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -866,6 +900,7 @@ export function VideoEditor({ userId }: { userId: string }) {
     active.canvas?.requestRenderAll();
     setSelection({ kind: "text", object: active, ...next });
     refreshLayers();
+    markDirty();
   }
 
   function deleteSelected() {
@@ -897,6 +932,7 @@ export function VideoEditor({ userId }: { userId: string }) {
   function moveLayer(layer: EditorLayer, direction: "back" | "front") {
     const canvas = canvasRef.current;
     if (!canvas || !layer.object) return;
+    markDirty();
 
     if (direction === "back") canvas.sendObjectToBack(layer.object);
     else canvas.bringObjectToFront(layer.object);
@@ -1213,6 +1249,7 @@ export function VideoEditor({ userId }: { userId: string }) {
 
       setExportedUrl(uploaded.url);
       setExportProgress(100);
+      setHasUnsavedChanges(false);
       toast.success("Video exported!", {
         description: "Saved to your Workspace clips.",
       });
@@ -1239,8 +1276,9 @@ export function VideoEditor({ userId }: { userId: string }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-warm-white text-soft-black">
       <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border-gray bg-white px-4 py-3">
-        <Link
-          href="/dashboard"
+        <button
+          type="button"
+          onClick={handleBack}
           aria-label="Back to workspace"
           className={cn(
             "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border-gray text-soft-black/70 duration-200 hover:bg-warm-white hover:text-soft-black",
@@ -1248,7 +1286,7 @@ export function VideoEditor({ userId }: { userId: string }) {
           )}
         >
           <ArrowLeft className="h-5 w-5" aria-hidden />
-        </Link>
+        </button>
 
         <div className="min-w-0 flex-1">
           <label htmlFor="project-name" className="sr-only">
@@ -1257,7 +1295,10 @@ export function VideoEditor({ userId }: { userId: string }) {
           <input
             id="project-name"
             value={projectName}
-            onChange={(event) => setProjectName(event.target.value)}
+            onChange={(event) => {
+              setProjectName(event.target.value);
+              markDirty();
+            }}
             placeholder="Untitled project"
             className={cn(
               "w-full max-w-md rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[20px] font-bold leading-[1.25] text-soft-black duration-200 hover:border-border-gray focus:border-brand-blue focus:bg-white",
@@ -1971,6 +2012,7 @@ export function VideoEditor({ userId }: { userId: string }) {
                             [control.key]: Number(event.target.value),
                           }));
                           setActiveFilter("custom");
+                          markDirty();
                         }}
                         aria-label={control.label}
                         className={cn("h-1.5 w-full cursor-pointer accent-brand-blue", focusRing)}
@@ -1983,6 +2025,7 @@ export function VideoEditor({ userId }: { userId: string }) {
                   onClick={() => {
                     setColorGrade(NO_GRADE);
                     setActiveFilter("original");
+                    markDirty();
                   }}
                   className={cn(
                     "mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border-gray bg-warm-white px-3 py-2 text-[12px] font-semibold duration-200 hover:bg-brand-blue-light",
@@ -2005,6 +2048,7 @@ export function VideoEditor({ userId }: { userId: string }) {
                       onClick={() => {
                         setActiveFilter(preset.id);
                         setColorGrade({ ...preset.grade });
+                        markDirty();
                       }}
                       className={cn(
                         "flex w-[74px] shrink-0 flex-col items-center gap-1 rounded-lg border-2 p-1 duration-200",
@@ -2031,9 +2075,10 @@ export function VideoEditor({ userId }: { userId: string }) {
                 <CustomSelect
                   label="Export resolution"
                   value={resolution}
-                  onValueChange={(value) =>
-                    setResolution(value === "4K" ? "4K" : "1080p")
-                  }
+                  onValueChange={(value) => {
+                    setResolution(value === "4K" ? "4K" : "1080p");
+                    markDirty();
+                  }}
                   options={RESOLUTIONS}
                 />
                 <p className="mt-2 text-[11px] leading-relaxed text-soft-black/50">
@@ -2129,6 +2174,54 @@ export function VideoEditor({ userId }: { userId: string }) {
           </Tabs.Root>
         </aside>
       </div>
+
+      <Dialog.Root open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[60] bg-soft-black/50 backdrop-blur-sm" />
+          <Dialog.Content
+            className={cn(
+              "fixed left-1/2 top-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2",
+              "rounded-3 border border-border-gray bg-white p-6 shadow-xl",
+              focusRing
+            )}
+          >
+            <Dialog.Title className="text-[24px] font-bold leading-[1.25] text-soft-black">
+              Unsaved Changes
+            </Dialog.Title>
+            <Dialog.Description className="mt-2 text-[14px] leading-relaxed text-soft-black/60">
+              You have unsaved changes in this project. If you leave now, your
+              edits will be lost.
+            </Dialog.Description>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-2 border border-border-gray bg-white px-5 py-2.5 text-[14px] font-semibold text-soft-black duration-200 hover:bg-warm-white",
+                    focusRing
+                  )}
+                >
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                onClick={() => {
+                  setLeaveDialogOpen(false);
+                  setHasUnsavedChanges(false);
+                  router.push("/dashboard");
+                }}
+                className={cn(
+                  "inline-flex items-center justify-center rounded-2 bg-red-500 px-5 py-2.5 text-[14px] font-semibold text-white duration-200 hover:bg-red-600",
+                  focusRing
+                )}
+              >
+                Discard Changes
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }
